@@ -70,12 +70,19 @@ final class ShareViewController: UIViewController {
 
     // MARK: - Opening the app
 
-    /// Extensions cannot use UIApplication.shared: find the application in the responder chain.
+    /// Extensions cannot use UIApplication.shared / open(_:): find the application in the
+    /// responder chain and call `openURL:options:completionHandler:` through the runtime.
     private func openContainingApp(_ url: URL) -> Bool {
+        typealias OpenURLFunction = @convention(c) (
+            NSObject, Selector, NSURL, NSDictionary, (@convention(block) (Bool) -> Void)?
+        ) -> Void
+        let selector = NSSelectorFromString("openURL:options:completionHandler:")
         var responder: UIResponder? = self
         while let current = responder {
-            if let application = current as? UIApplication {
-                application.open(url, options: [:], completionHandler: nil)
+            if let application = current as? UIApplication, application.responds(to: selector) {
+                let implementation = application.method(for: selector)
+                let open = unsafeBitCast(implementation, to: OpenURLFunction.self)
+                open(application, selector, url as NSURL, NSDictionary(), nil)
                 return true
             }
             responder = current.next
