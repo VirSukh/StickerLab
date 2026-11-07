@@ -1,0 +1,4 @@
+{$COBALT_DOMAIN} {
+	encode gzip
+	reverse_proxy cobalt:9000
+}

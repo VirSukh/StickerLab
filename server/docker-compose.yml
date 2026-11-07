@@ -1,0 +1,35 @@
+services:
+  cobalt:
+    image: ghcr.io/imputnet/cobalt:11
+    container_name: cobalt
+    init: true
+    read_only: true
+    restart: unless-stopped
+    environment:
+      API_URL: "https://${COBALT_DOMAIN}/"
+      API_AUTH_REQUIRED: "1"
+      API_KEY_URL: "file:///keys.json"
+    volumes:
+      - ./keys.json:/keys.json:ro
+    expose:
+      - "9000"
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      COBALT_DOMAIN: "${COBALT_DOMAIN}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - cobalt
+
+volumes:
+  caddy_data:
+  caddy_config:

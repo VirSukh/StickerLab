@@ -3,6 +3,7 @@ name: Build IPA
 on:
   push:
     branches: [main]
+    paths-ignore: ["server/**", "**/*.md"]
     tags: ["v*"]
   workflow_dispatch:
 

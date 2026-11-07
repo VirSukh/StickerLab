@@ -3,6 +3,7 @@ name: Screenshots
 on:
   push:
     branches: [main]
+    paths-ignore: ["server/**", "**/*.md"]
   workflow_dispatch:
 
 jobs:
