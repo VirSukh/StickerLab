@@ -54,16 +54,46 @@ enum StickerEncoder {
             if candidate.frames.count == 1 {
                 candidate = DecodedMedia(frames: [candidate.frames[0], candidate.frames[0]], durations: [0.5, 0.5])
             }
-            let durationsMs = candidate.durations.map { max(10, Int(($0 * 1000).rounded())) }
-            guard let data = WebPCodec.encodeAnimated(
-                frames: candidate.frames, durationsMs: durationsMs, quality: quality, width: side, height: side
-            ) else {
-                throw AppError("Codifica WebP animata non riuscita.")
+            var data = try encode(candidate, quality: quality)
+            // The encoder merges identical frames: a still image would end up with a single
+            // frame, and WhatsApp rejects non-animated stickers in animated packs.
+            if (WebPCodec.inspect(data)?.frameCount ?? 0) < 2 {
+                data = try encode(stillAnimation(candidate.frames[0], total: candidate.totalDuration), quality: quality)
             }
             if data.count <= animatedLimit { return data }
             // Far over the limit: skip an attempt to save time.
             index += Double(data.count) / Double(animatedLimit) > 1.8 ? 2 : 1
         }
         throw AppError("L'animazione è troppo pesante anche alla qualità minima: accorcia la durata.")
+    }
+
+    /// Encodes with WhatsApp timing rules: every frame ≥ 8 ms, total ≤ 10 s.
+    private static func encode(_ media: DecodedMedia, quality: Float) throws -> Data {
+        var durationsMs = media.durations.map { max(20, Int(($0 * 1000).rounded())) }
+        var excess = durationsMs.reduce(0, +) - Int(maxDuration * 1000)
+        var index = durationsMs.count - 1
+        while excess > 0 && index >= 0 {
+            let cut = min(excess, durationsMs[index] - 20)
+            durationsMs[index] -= cut
+            excess -= cut
+            index -= 1
+        }
+        guard let data = WebPCodec.encodeAnimated(
+            frames: media.frames, durationsMs: durationsMs, quality: quality, width: side, height: side
+        ) else {
+            throw AppError("Codifica WebP animata non riuscita.")
+        }
+        return data
+    }
+
+    /// Two frames that differ by a 1-pixel shift, so the encoder cannot merge them.
+    private static func stillAnimation(_ frame: CGImage, total: Double) -> DecodedMedia {
+        let half = max(0.5, min(total, maxDuration) / 2)
+        guard let context = ImageUtils.makeContext(width: side, height: side) else {
+            return DecodedMedia(frames: [frame, frame], durations: [half, half])
+        }
+        context.draw(frame, in: CGRect(x: 0, y: 1, width: side, height: side))
+        let shifted = context.makeImage() ?? frame
+        return DecodedMedia(frames: [frame, shifted], durations: [half, half])
     }
 }

@@ -131,6 +131,22 @@ final class PackStore: ObservableObject {
         save()
     }
 
+    /// Replaces a sticker's file (used by the automatic repair). A new file name refreshes thumbnails.
+    func replaceSticker(_ stickerID: UUID, in packID: UUID, with data: Data) throws {
+        guard let index = packs.firstIndex(where: { $0.id == packID }),
+              let stickerIndex = packs[index].stickers.firstIndex(where: { $0.id == stickerID }) else { return }
+        let folder = folder(for: packID)
+        let old = packs[index].stickers[stickerIndex].fileName
+        let newName = "\(UUID().uuidString).webp"
+        try data.write(to: folder.appendingPathComponent(newName), options: .atomic)
+        try? FileManager.default.removeItem(at: folder.appendingPathComponent(old))
+        packs[index].stickers[stickerIndex].fileName = newName
+        packs[index].stickers[stickerIndex].animated = packs[index].animated
+        packs[index].updatedAt = Date()
+        if stickerIndex == 0 { regenerateTray(at: index) }
+        save()
+    }
+
     func setEmojis(_ emojis: [String], for stickerID: UUID, in packID: UUID) {
         guard let index = packs.firstIndex(where: { $0.id == packID }),
               let stickerIndex = packs[index].stickers.firstIndex(where: { $0.id == stickerID }) else { return }

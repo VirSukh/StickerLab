@@ -120,6 +120,46 @@ enum WebPCodec {
         }
     }
 
+    struct Info {
+        let width: Int
+        let height: Int
+        let frameCount: Int
+        let minFrameMs: Int
+        let totalMs: Int
+    }
+
+    /// Reads canvas size, frame count and frame timings (for WhatsApp validation).
+    static func inspect(_ data: Data) -> Info? {
+        data.withUnsafeBytes { raw -> Info? in
+            guard let base = raw.bindMemory(to: UInt8.self).baseAddress else { return nil }
+            var webpData = WebPData(bytes: base, size: data.count)
+            var options = WebPAnimDecoderOptions()
+            guard WebPAnimDecoderOptionsInit(&options) != 0 else { return nil }
+            options.color_mode = MODE_RGBA
+            guard let decoder = WebPAnimDecoderNew(&webpData, &options) else { return nil }
+            defer { WebPAnimDecoderDelete(decoder) }
+            var info = WebPAnimInfo()
+            guard WebPAnimDecoderGetInfo(decoder, &info) != 0 else { return nil }
+            let frames = Int(info.frame_count)
+            guard frames > 1 else {
+                return Info(width: Int(info.canvas_width), height: Int(info.canvas_height), frameCount: frames, minFrameMs: 0, totalMs: 0)
+            }
+            var previous: Int32 = 0
+            var minimum = Int.max
+            while WebPAnimDecoderHasMoreFrames(decoder) != 0 {
+                var buffer: UnsafeMutablePointer<UInt8>?
+                var timestamp: Int32 = 0
+                guard WebPAnimDecoderGetNext(decoder, &buffer, &timestamp) != 0 else { break }
+                minimum = min(minimum, Int(timestamp - previous))
+                previous = timestamp
+            }
+            return Info(
+                width: Int(info.canvas_width), height: Int(info.canvas_height), frameCount: frames,
+                minFrameMs: minimum == Int.max ? 0 : minimum, totalMs: Int(previous)
+            )
+        }
+    }
+
     static func isAnimated(fileURL: URL) -> Bool {
         guard let data = try? Data(contentsOf: fileURL) else { return false }
         return frameCount(data) > 1

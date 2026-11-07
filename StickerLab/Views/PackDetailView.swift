@@ -13,6 +13,14 @@ struct PackDetailView: View {
     @State private var emojiInput = ""
     @State private var confirmDelete = false
     @State private var errorMessage: String?
+    @State private var working: String?
+    @State private var problemReport: ProblemReport?
+    @State private var invalidIDs: Set<UUID> = []
+
+    struct ProblemReport: Identifiable {
+        let id = UUID()
+        let problems: [StickerProblem]
+    }
 
     var body: some View {
         if let pack = store.pack(id: packID) {
@@ -29,7 +37,7 @@ struct PackDetailView: View {
                 header(pack)
 
                 Button {
-                    do { try WhatsAppExporter.send(pack, store: store) } catch { errorMessage = error.localizedDescription }
+                    Task { await checkAndSend(pack) }
                 } label: {
                     Label("Aggiungi a WhatsApp", systemImage: "paperplane.fill")
                         .font(.headline)
@@ -104,6 +112,19 @@ struct PackDetailView: View {
                 }
             }
         }
+        .overlay { if let working { BusyOverlay(message: working) } }
+        .sheet(item: $problemReport) { report in
+            ProblemsSheet(
+                pack: pack,
+                problems: report.problems,
+                onRepair: { problemReport = nil; Task { await repair(report.problems, pack: pack) } },
+                onRemove: {
+                    problemReport = nil
+                    report.problems.forEach { store.deleteSticker($0.id, from: pack.id) }
+                    invalidIDs = []
+                }
+            )
+        }
         .sheet(isPresented: $showEdit) { PackFormView(pack: pack) }
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
         .sheet(item: $previewSticker) { sticker in StickerPreviewView(url: store.fileURL(for: sticker, in: pack)) }
@@ -165,6 +186,13 @@ struct PackDetailView: View {
             if isTray {
                 Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).padding(8)
             }
+            if invalidIDs.contains(sticker.id) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
             Text(sticker.emojis.joined())
                 .font(.caption2)
                 .padding(6)
@@ -192,6 +220,114 @@ struct PackDetailView: View {
 
     private func share(_ make: () throws -> URL) {
         do { shareItem = IdentifiableURL(url: try make()) } catch { errorMessage = error.localizedDescription }
+    }
+
+    // MARK: WhatsApp
+
+    private func stickerFiles(_ pack: StickerPack) -> [(UUID, URL)] {
+        pack.stickers.map { ($0.id, store.fileURL(for: $0, in: pack)) }
+    }
+
+    /// Validates every sticker with WhatsApp's rules before sending.
+    private func checkAndSend(_ pack: StickerPack) async {
+        working = "Controllo degli sticker…"
+        let problems = await StickerValidator.check(files: stickerFiles(pack), packAnimated: pack.animated)
+        working = nil
+        invalidIDs = Set(problems.map(\.id))
+        if problems.isEmpty {
+            send(pack)
+        } else {
+            problemReport = ProblemReport(problems: problems)
+        }
+    }
+
+    private func repair(_ problems: [StickerProblem], pack: StickerPack) async {
+        var failures: [String] = []
+        for (index, problem) in problems.enumerated() {
+            working = "Riparazione \(index + 1)/\(problems.count)…"
+            guard let current = store.pack(id: pack.id),
+                  let sticker = current.stickers.first(where: { $0.id == problem.id }) else { continue }
+            do {
+                let data = try Data(contentsOf: store.fileURL(for: sticker, in: current))
+                let fixed = try await StickerValidator.repair(data, packAnimated: current.animated)
+                try store.replaceSticker(problem.id, in: current.id, with: fixed)
+            } catch {
+                failures.append("Sticker \(problem.position): \(error.localizedDescription)")
+            }
+        }
+        working = nil
+        guard let updated = store.pack(id: pack.id) else { return }
+        if failures.isEmpty {
+            await checkAndSend(updated)
+        } else {
+            errorMessage = "Alcuni sticker non si possono riparare: eliminali e reimportali.\n" + failures.joined(separator: "\n")
+        }
+    }
+
+    private func send(_ pack: StickerPack) {
+        do { try WhatsAppExporter.send(pack, store: store) } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+/// Lists stickers that WhatsApp would reject, with automatic repair.
+struct ProblemsSheet: View {
+    let pack: StickerPack
+    let problems: [StickerProblem]
+    let onRepair: () -> Void
+    let onRemove: () -> Void
+    @EnvironmentObject private var store: PackStore
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("WhatsApp rifiuterebbe \(problems.count == 1 ? "questo sticker" : "questi \(problems.count) sticker"). La riparazione li ricodifica secondo le regole del pacchetto (\(pack.animated ? "animato" : "statico")).")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    ForEach(problems) { problem in
+                        HStack(alignment: .top, spacing: 12) {
+                            if let sticker = pack.stickers.first(where: { $0.id == problem.id }) {
+                                StickerThumbnail(url: store.fileURL(for: sticker, in: pack))
+                                    .frame(width: 56, height: 56)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Sticker \(problem.position)").font(.headline)
+                                ForEach(problem.reasons, id: \.self) { reason in
+                                    Label(reason, systemImage: "xmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.red)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(12)
+                        .glassCard(cornerRadius: 20)
+                    }
+                    GlassGroup {
+                        VStack(spacing: 10) {
+                            Button(action: onRepair) {
+                                Label("Ripara e invia a WhatsApp", systemImage: "wrench.and.screwdriver.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .glassButton(prominent: true, tint: .green)
+                            .controlSize(.large)
+                            Button(role: .destructive, action: onRemove) {
+                                Label("Elimina questi sticker", systemImage: "trash")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .glassButton()
+                            .controlSize(.large)
+                        }
+                    }
+                }
+                .padding()
+            }
+            .appBackground()
+            .navigationTitle("Sticker non validi")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Chiudi") { dismiss() } } }
+        }
     }
 }
 

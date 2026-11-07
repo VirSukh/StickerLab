@@ -30,6 +30,8 @@ final class AppState: ObservableObject {
     @Published var pendingLink: String?
     /// Pack that new stickers should go to by default.
     @Published var preferredPackID: UUID?
+    /// Short confirmation shown at the top of the screen.
+    @Published var toast: String?
     /// Navigation path of the Packs tab.
     @Published var packsPath: [UUID] = []
 
@@ -76,6 +78,36 @@ final class AppState: ObservableObject {
             alertMessage = "\(failures.count) elementi non scaricati.\n" + failures.prefix(5).joined(separator: "\n")
         }
         open(items, packName: packName)
+    }
+
+    /// Long-press "quick save": download, convert with default framing and add to a pack, no editor.
+    /// `packID == nil` (or a full pack) creates a new pack named `newPackName`.
+    func quickSave(_ media: RemoteMedia, to packID: UUID?, newPackName: String, store: PackStore) async {
+        busyMessage = "Salvataggio…"
+        defer { busyMessage = nil }
+        do {
+            let file = try await Downloader.download(media)
+            let item = ImportItem(fileURL: file, sourceURL: media.pageURL ?? media.url.absoluteString, name: media.title)
+
+            var target = packID.flatMap { store.pack(id: $0) }
+            if target == nil || target?.isFull == true {
+                let kind = MediaDecoder.sniff(file)
+                let animated = media.kind == .animated || media.kind == .gif || media.kind == .video
+                    || kind == .gif || kind == .video || (kind == .webp && WebPCodec.isAnimated(fileURL: file))
+                let publisher = UserDefaults.standard.string(forKey: "defaultPublisher") ?? ""
+                target = store.createPack(name: newPackName, publisher: publisher, animated: animated)
+            }
+            guard let pack = target else { return }
+
+            let data = try await StickerPipeline.makeDefaultSticker(from: item, animated: pack.animated)
+            let emojis = EmojiParser.parse(UserDefaults.standard.string(forKey: "defaultEmoji") ?? "😀")
+            try store.addSticker(data: data, animated: pack.animated, emojis: emojis, source: item.sourceURL, to: pack.id)
+            preferredPackID = pack.id
+            let count = store.pack(id: pack.id)?.stickers.count ?? 0
+            toast = "Salvato in \(pack.name) (\(count)/\(StickerPack.maxStickers))"
+        } catch {
+            alertMessage = error.localizedDescription
+        }
     }
 
     func handleOpenURL(_ url: URL, store: PackStore) {

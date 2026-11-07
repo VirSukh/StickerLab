@@ -247,20 +247,47 @@ struct MediaPickerView: View {
     let payload: MediaPickerPayload
     let onConfirm: ([RemoteMedia]) -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var store: PackStore
+    @EnvironmentObject private var app: AppState
     @State private var selected: Set<UUID> = []
 
     var body: some View {
         NavigationStack {
             ScrollView {
+                Text("Tocca per selezionare, tieni premuto per salvare subito in un pacchetto.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 10) {
                     ForEach(payload.medias) { media in
                         RemoteMediaCell(media: media, selected: selected.contains(media.id))
                             .onTapGesture {
                                 if selected.contains(media.id) { selected.remove(media.id) } else { selected.insert(media.id) }
                             }
+                            .contextMenu {
+                                QuickSaveMenu(
+                                    media: media,
+                                    newPackName: payload.packName ?? "Nuovo pacchetto",
+                                    store: store,
+                                    app: app
+                                )
+                            }
                     }
                 }
                 .padding()
+            }
+            .overlay {
+                if let message = app.busyMessage { BusyOverlay(message: message) }
+            }
+            .overlay(alignment: .top) {
+                if let toast = app.toast {
+                    Label(toast, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .glassCapsule(tint: .green)
+                        .padding(.top, 6)
+                }
             }
             .appBackground()
             .keyboardDismissButton()

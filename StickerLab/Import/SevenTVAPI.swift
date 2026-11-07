@@ -154,11 +154,10 @@ enum SevenTVAPI {
         return SevenTVEmote(id: emoteID, name: json["name"] as? String ?? "emote", animated: json["animated"] as? Bool ?? false)
     }
 
-    static func emoteSet(id: String) async throws -> ResolvedLink {
+    static func setEmotes(id: String) async throws -> (name: String?, emotes: [SevenTVEmote]) {
         guard let json = try await Downloader.fetchJSON(URL(string: "\(base)/emote-sets/\(id)")!) as? [String: Any] else {
             throw AppError("Set 7TV non trovato.")
         }
-        let name = json["name"] as? String
         let entries = json["emotes"] as? [[String: Any]] ?? []
         let emotes: [SevenTVEmote] = entries.compactMap { entry in
             let data = entry["data"] as? [String: Any]
@@ -166,8 +165,13 @@ enum SevenTVAPI {
             let emoteName = (entry["name"] as? String) ?? (data?["name"] as? String) ?? "emote"
             return SevenTVEmote(id: emoteID, name: emoteName, animated: data?["animated"] as? Bool ?? false)
         }
-        guard !emotes.isEmpty else { throw AppError("Il set 7TV è vuoto.") }
-        return ResolvedLink(title: name, medias: emotes.map(\.remote))
+        return (json["name"] as? String, emotes)
+    }
+
+    static func emoteSet(id: String) async throws -> ResolvedLink {
+        let set = try await setEmotes(id: id)
+        guard !set.emotes.isEmpty else { throw AppError("Il set 7TV è vuoto.") }
+        return ResolvedLink(title: set.name, medias: set.emotes.map(\.remote))
     }
 
     static func userSet(id: String) async throws -> ResolvedLink {

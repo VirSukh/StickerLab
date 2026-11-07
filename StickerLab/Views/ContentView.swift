@@ -34,6 +34,22 @@ struct ContentView: View {
         .overlay {
             if let message = app.busyMessage { BusyOverlay(message: message) }
         }
+        .overlay(alignment: .top) {
+            if let toast = app.toast {
+                Label(toast, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .glassCapsule(tint: .green)
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: toast) {
+                        try? await Task.sleep(nanoseconds: 2_200_000_000)
+                        app.toast = nil
+                    }
+            }
+        }
+        .animation(.spring(response: 0.35), value: app.toast)
         .alert(
             "StickerLab",
             isPresented: Binding(get: { app.alertMessage != nil }, set: { if !$0 { app.alertMessage = nil } })

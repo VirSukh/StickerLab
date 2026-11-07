@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SevenTVView: View {
     @EnvironmentObject private var app: AppState
+    @EnvironmentObject private var store: PackStore
 
     @State private var query = ""
     @State private var category: SevenTVAPI.Category = .top
@@ -14,10 +15,20 @@ struct SevenTVView: View {
     @State private var selecting = false
     @State private var selected: [SevenTVEmote] = []
     @State private var activeQuery = ""
+    @State private var searchDown = false
 
     var body: some View {
         ScrollView {
             categoryBar
+
+            if searchDown {
+                Label("La ricerca di 7TV è momentaneamente fuori servizio (problema dei loro server). Intanto ecco le emote globali; i link a emote e set funzionano.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(12)
+                    .glassCard(cornerRadius: 18, tint: .orange)
+                    .padding(.horizontal)
+            }
 
             if let errorMessage, emotes.isEmpty {
                 VStack(spacing: 12) {
@@ -32,6 +43,18 @@ struct SevenTVView: View {
                 ForEach(emotes) { emote in
                     EmoteCell(emote: emote, selected: selected.contains(emote))
                         .onTapGesture { tap(emote) }
+                        .contextMenu {
+                            QuickSaveMenu(
+                                media: emote.remote,
+                                newPackName: activeQuery.isEmpty ? "7TV \(category.label)" : "7TV \(activeQuery)",
+                                store: store,
+                                app: app
+                            )
+                        } preview: {
+                            RemoteAnimatedImage(url: emote.previewURL)
+                                .frame(width: 220, height: 220)
+                                .padding()
+                        }
                         .onAppear {
                             if emote.id == emotes.last?.id { Task { await loadMore() } }
                         }
@@ -151,8 +174,20 @@ struct SevenTVView: View {
             emotes.append(contentsOf: result.emotes.filter { !existing.contains($0.id) })
             total = result.total
             errorMessage = nil
+            searchDown = false
         } catch {
-            errorMessage = "Impossibile caricare le emote 7TV.\n\(error.localizedDescription)"
+            // 7TV's search sometimes fails on their side (LOAD_ERROR) while sets still work.
+            if page == 1, let global = try? await SevenTVAPI.setEmotes(id: "global"), !global.emotes.isEmpty {
+                var list = global.emotes
+                if filter == .animated { list = list.filter(\.animated) }
+                if filter == .still { list = list.filter { !$0.animated } }
+                emotes = list
+                total = list.count
+                searchDown = true
+                errorMessage = nil
+            } else {
+                errorMessage = "Impossibile caricare le emote 7TV.\n\(error.localizedDescription)"
+            }
         }
     }
 }

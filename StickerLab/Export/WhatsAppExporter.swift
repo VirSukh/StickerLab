@@ -1,5 +1,57 @@
 import UIKit
 
+struct StickerProblem: Identifiable {
+    let id: UUID          // sticker id
+    let position: Int     // 1-based
+    let reasons: [String]
+}
+
+/// Checks each sticker against WhatsApp's official rules (WhatsApp/stickers validator).
+enum StickerValidator {
+    static func reasons(for data: Data, packAnimated: Bool) -> [String] {
+        guard let info = WebPCodec.inspect(data) else { return ["File WebP non leggibile"] }
+        var reasons: [String] = []
+        if info.width != 512 || info.height != 512 {
+            reasons.append("Dimensioni \(info.width)×\(info.height) invece di 512×512")
+        }
+        if packAnimated {
+            if info.frameCount < 2 { reasons.append("Non è animato, ma il pacchetto è animato") }
+            if data.count > StickerEncoder.animatedLimit { reasons.append("Pesa \(formatBytes(data.count)), massimo 500 KB") }
+            if info.frameCount > 1 && info.minFrameMs < 8 { reasons.append("Fotogrammi troppo brevi (\(info.minFrameMs) ms, minimo 8)") }
+            if info.totalMs > 10_000 { reasons.append("Dura \(info.totalMs / 1000) s, massimo 10 s") }
+        } else {
+            if info.frameCount > 1 { reasons.append("È animato, ma il pacchetto è statico") }
+            if data.count > StickerEncoder.staticLimit { reasons.append("Pesa \(formatBytes(data.count)), massimo 100 KB") }
+        }
+        return reasons
+    }
+
+    /// Runs off the main thread: decoding every sticker takes a moment.
+    static func check(files: [(UUID, URL)], packAnimated: Bool) async -> [StickerProblem] {
+        await Task.detached(priority: .userInitiated) {
+            var problems: [StickerProblem] = []
+            for (index, file) in files.enumerated() {
+                let reasons: [String]
+                if let data = try? Data(contentsOf: file.1) {
+                    reasons = Self.reasons(for: data, packAnimated: packAnimated)
+                } else {
+                    reasons = ["File mancante"]
+                }
+                if !reasons.isEmpty { problems.append(StickerProblem(id: file.0, position: index + 1, reasons: reasons)) }
+            }
+            return problems
+        }.value
+    }
+
+    /// Re-encodes a sticker so it follows the rules of its pack.
+    static func repair(_ data: Data, packAnimated: Bool) async throws -> Data {
+        try await Task.detached(priority: .userInitiated) {
+            guard let media = WebPCodec.decode(data) else { throw AppError("Sticker illeggibile: eliminalo e reimportalo.") }
+            return try StickerPipeline.makeSticker(from: media, settings: EditSettings(), animated: packAnimated)
+        }.value
+    }
+}
+
 /// Sends a pack to WhatsApp using the official iOS mechanism:
 /// JSON on the pasteboard + opening `whatsapp://stickerPack`.
 enum WhatsAppExporter {
