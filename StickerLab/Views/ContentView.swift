@@ -64,6 +64,7 @@ struct ContentView: View {
         .onAppear {
             Downloader.cleanTemporaryFiles()
             FontRegistry.registerAll()
+            FrankerFaceZAPI.prefetch()
         }
     }
 }

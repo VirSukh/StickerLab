@@ -88,7 +88,7 @@ enum FrankerFaceZAPI {
         return emoteItem(id: id, name: name, animated: animated)
     }
 
-    static func search(_ query: String, page: Int, category: BrowseCategory, perPage: Int = 60) async throws -> (emotes: [EmoteItem], hasMore: Bool) {
+    static func searchURL(_ query: String, page: Int, category: BrowseCategory, perPage: Int = 60) -> URL {
         var components = URLComponents(string: "\(base)/emotes")!
         components.queryItems = [
             URLQueryItem(name: "q", value: query.trimmed),
@@ -96,18 +96,43 @@ enum FrankerFaceZAPI {
             URLQueryItem(name: "page", value: String(page)),
             URLQueryItem(name: "per_page", value: String(perPage)),
         ]
-        let json: Any
+        return components.url!
+    }
+
+    private static func decode(_ json: Any, page: Int) throws -> (emotes: [EmoteItem], hasMore: Bool) {
+        guard let root = json as? [String: Any] else { throw AppError("FrankerFaceZ: risposta non valida.") }
+        let list = (root["emoticons"] as? [[String: Any]] ?? []).compactMap(parse)
+        let pages = root["_pages"] as? Int ?? page
+        return (list, page < pages)
+    }
+
+    /// Browsing lists (no query) are slow on FFZ's side: cache them for 6 hours; searches for 1 hour.
+    static func search(_ query: String, page: Int, category: BrowseCategory, perPage: Int = 60) async throws -> (emotes: [EmoteItem], hasMore: Bool) {
+        let url = searchURL(query, page: page, category: category, perPage: perPage)
+        let maxAge: TimeInterval = query.trimmed.isEmpty ? 6 * 3600 : 3600
         do {
-            json = try await Downloader.fetchJSON(components.url!)
+            return try decode(try await ResponseCache.fetchJSON(url, maxAge: maxAge), page: page)
         } catch {
             // FFZ answers 404 when a search has no results.
             if (error as? AppError)?.message.contains("404") == true { return ([], false) }
             throw error
         }
-        guard let root = json as? [String: Any] else { throw AppError("FrankerFaceZ: risposta non valida.") }
-        let list = (root["emoticons"] as? [[String: Any]] ?? []).compactMap(parse)
-        let pages = root["_pages"] as? Int ?? page
-        return (list, page < pages)
+    }
+
+    /// Whatever is cached for this list, even if old (shown instantly while refreshing).
+    static func cachedSearch(_ query: String, page: Int, category: BrowseCategory) -> (emotes: [EmoteItem], hasMore: Bool, age: TimeInterval)? {
+        guard let hit = ResponseCache.cached(searchURL(query, page: page, category: category)),
+              let result = try? decode(hit.json, page: page) else { return nil }
+        return (result.emotes, result.hasMore, hit.age)
+    }
+
+    /// Downloads the popular list in the background at launch, so the Emote tab opens instantly.
+    static func prefetch() {
+        Task.detached(priority: .background) {
+            for category in [BrowseCategory.top, .new] {
+                _ = try? await search("", page: 1, category: category)
+            }
+        }
     }
 
     /// Links like https://www.frankerfacez.com/emoticon/724094-Dance

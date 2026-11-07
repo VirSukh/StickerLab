@@ -200,9 +200,18 @@ struct EmoteBrowserView: View {
                 result = response.emotes.map(\.item)
                 hasMore = emotes.count + result.count < response.total && !result.isEmpty
             case .ffz:
-                let response = try await FrankerFaceZAPI.search(activeQuery, page: page, category: activeQuery.isEmpty ? category : .top)
+                let ffzCategory: BrowseCategory = activeQuery.isEmpty ? category : .top
+                // Show the cached list right away; the network answer replaces it when it arrives.
+                if page == 1, emotes.isEmpty,
+                   let cached = FrankerFaceZAPI.cachedSearch(activeQuery, page: 1, category: ffzCategory) {
+                    emotes = applyFilter(cached.emotes)
+                    hasMore = cached.hasMore
+                    if cached.age < 6 * 3600 { return }
+                }
+                let response = try await FrankerFaceZAPI.search(activeQuery, page: page, category: ffzCategory)
                 result = applyFilter(response.emotes)
                 hasMore = response.hasMore
+                if page == 1 { emotes = [] }
             }
             guard requestedSource == source else { return }
             let existing = Set(emotes.map(\.id))

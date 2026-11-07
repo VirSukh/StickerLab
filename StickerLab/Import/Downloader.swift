@@ -137,3 +137,51 @@ enum Downloader {
         try? FileManager.default.removeItem(at: tempDirectory)
     }
 }
+
+/// Small on-disk cache for slow JSON APIs (FrankerFaceZ popular lists take 5–15 s to answer).
+enum ResponseCache {
+    private static var folder: URL {
+        let url = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("api-cache", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func file(for url: URL) -> URL {
+        let key = url.absoluteString.unicodeScalars.reduce(into: UInt64(1469598103934665603)) { hash, scalar in
+            hash = (hash ^ UInt64(scalar.value)) &* 1099511628211
+        }
+        return folder.appendingPathComponent(String(key, radix: 16) + ".json")
+    }
+
+    /// Cached JSON and its age in seconds, if any.
+    static func cached(_ url: URL) -> (json: Any, age: TimeInterval)? {
+        let path = file(for: url)
+        guard let data = try? Data(contentsOf: path),
+              let json = try? JSONSerialization.jsonObject(with: data),
+              let modified = (try? FileManager.default.attributesOfItem(atPath: path.path))?[.modificationDate] as? Date else {
+            return nil
+        }
+        return (json, Date().timeIntervalSince(modified))
+    }
+
+    /// Fresh cache if younger than `maxAge`, otherwise network (falling back to stale cache on errors).
+    static func fetchJSON(_ url: URL, maxAge: TimeInterval) async throws -> Any {
+        if let hit = cached(url), hit.age < maxAge { return hit.json }
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
+            request.timeoutInterval = 45
+            let (data, response) = try await Downloader.session.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                throw AppError("Errore HTTP \(http.statusCode)")
+            }
+            let json = try JSONSerialization.jsonObject(with: data)
+            try? data.write(to: file(for: url), options: .atomic)
+            return json
+        } catch {
+            if let stale = cached(url) { return stale.json }
+            throw error
+        }
+    }
+}
