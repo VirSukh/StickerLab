@@ -22,6 +22,7 @@ targets:
     dependencies:
       - package: libwebp
       - package: ZIPFoundation
+      - target: StickerLabShare
     scheme: {}
     settings:
       base:
@@ -41,6 +42,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
+        UIUserInterfaceStyle: Dark
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -74,3 +76,35 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - wastickers
+
+  # Share extension: "Condividi → StickerLab" from Instagram, TikTok, Pinterest, Safari…
+  StickerLabShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: StickerLabShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vir.stickerlab.share
+        PRODUCT_NAME: StickerLabShare
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # Needed to open the main app from the extension.
+        APPLICATION_EXTENSION_API_ONLY: NO
+        CODE_SIGN_STYLE: Manual
+    info:
+      path: StickerLabShare/Info.plist
+      properties:
+        CFBundleDisplayName: StickerLab
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1
+              NSExtensionActivationSupportsText: true

@@ -112,6 +112,7 @@ struct BrowserView: View {
                 .padding(8)
                 WebViewContainer(webView: model.webView)
             }
+            .keyboardDismissButton()
             .navigationTitle("Browser")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

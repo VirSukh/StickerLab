@@ -97,6 +97,7 @@ struct EditorView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .appBackground()
+        .keyboardDismissButton()
     }
 
     // MARK: Preview

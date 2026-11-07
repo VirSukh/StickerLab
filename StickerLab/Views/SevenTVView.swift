@@ -4,6 +4,7 @@ struct SevenTVView: View {
     @EnvironmentObject private var app: AppState
 
     @State private var query = ""
+    @State private var category: SevenTVAPI.Category = .top
     @State private var filter: SevenTVAPI.Filter = .all
     @State private var emotes: [SevenTVEmote] = []
     @State private var page = 1
@@ -16,6 +17,8 @@ struct SevenTVView: View {
 
     var body: some View {
         ScrollView {
+            categoryBar
+
             if let errorMessage, emotes.isEmpty {
                 VStack(spacing: 12) {
                     Text(errorMessage).foregroundStyle(.secondary).multilineTextAlignment(.center)
@@ -34,11 +37,13 @@ struct SevenTVView: View {
                         }
                 }
             }
-            .padding()
+            .padding(.horizontal)
+            .padding(.bottom)
             if loading { ProgressView().padding() }
         }
         .appBackground()
-        .navigationTitle(activeQuery.isEmpty ? "7TV · Popolari" : "7TV · \(activeQuery)")
+        .keyboardDismissButton()
+        .navigationTitle(activeQuery.isEmpty ? "7TV · \(category.label)" : "7TV · \(activeQuery)")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Cerca emote")
         .onSubmit(of: .search) { Task { await reload() } }
@@ -49,7 +54,7 @@ struct SevenTVView: View {
                         ForEach(SevenTVAPI.Filter.allCases) { option in Text(option.label).tag(option) }
                     }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    Image(systemName: filter == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                 }
             }
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -64,7 +69,8 @@ struct SevenTVView: View {
                         let picks = selected
                         selecting = false
                         selected = []
-                        Task { await app.download(picks.map(\.remote), packName: activeQuery.isEmpty ? "7TV" : activeQuery) }
+                        let name = activeQuery.isEmpty ? "7TV \(category.label)" : activeQuery
+                        Task { await app.download(picks.map(\.remote), packName: name) }
                     } label: {
                         Text(selected.isEmpty ? "Tocca le emote da importare" : "Importa \(selected.count) emote").bold()
                     }
@@ -73,12 +79,38 @@ struct SevenTVView: View {
             }
         }
         .onChange(of: filter) { _ in Task { await reload() } }
+        .onChange(of: category) { _ in Task { await reload() } }
         .onChange(of: query) { value in
             if value.isEmpty && !activeQuery.isEmpty { Task { await reload() } }
         }
         .task {
             if emotes.isEmpty { await reload() }
         }
+    }
+
+    private var categoryBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            GlassGroup(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(SevenTVAPI.Category.allCases) { item in
+                        Button {
+                            category = item
+                        } label: {
+                            Label(item.label, systemImage: item.symbol)
+                                .font(.subheadline.weight(category == item ? .semibold : .regular))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .foregroundStyle(category == item ? Color.white : Color.primary)
+                                .glassCapsule(tint: category == item ? .accentColor : nil, interactive: true)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+        }
+        .opacity(activeQuery.isEmpty ? 1 : 0.5)
     }
 
     private func tap(_ emote: SevenTVEmote) {
@@ -112,7 +144,9 @@ struct SevenTVView: View {
         loading = true
         defer { loading = false }
         do {
-            let result = try await SevenTVAPI.search(activeQuery, page: page, filter: filter)
+            // Searches always look in the whole catalogue.
+            let searchCategory: SevenTVAPI.Category = activeQuery.isEmpty ? category : .top
+            let result = try await SevenTVAPI.search(activeQuery, page: page, category: searchCategory, filter: filter)
             let existing = Set(emotes.map(\.id))
             emotes.append(contentsOf: result.emotes.filter { !existing.contains($0.id) })
             total = result.total
@@ -129,28 +163,16 @@ struct EmoteCell: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            ZStack {
-                AsyncImage(url: emote.previewURL) { phase in
-                    if let image = phase.image {
-                        image.resizable().interpolation(.high).scaledToFit()
-                    } else if phase.error != nil {
-                        Image(systemName: "photo").foregroundStyle(.secondary)
-                    } else {
-                        ProgressView()
+            RemoteAnimatedImage(url: emote.previewURL)
+                .padding(12)
+                .aspectRatio(1, contentMode: .fit)
+                .glassCard(cornerRadius: 22, tint: selected ? .accentColor : nil, interactive: true)
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2.5))
+                .overlay(alignment: .topTrailing) {
+                    if selected {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, Color.accentColor).padding(4)
                     }
                 }
-                .padding(12)
-            }
-            .aspectRatio(1, contentMode: .fit)
-            .glassCard(cornerRadius: 22, tint: selected ? .accentColor : nil, interactive: true)
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2.5))
-            .overlay(alignment: .topTrailing) {
-                if selected {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, Color.accentColor).padding(4)
-                } else if emote.animated {
-                    Image(systemName: "play.circle.fill").font(.caption).foregroundStyle(.secondary).padding(5)
-                }
-            }
             Text(emote.name).font(.caption2).lineLimit(1)
         }
     }

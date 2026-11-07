@@ -88,6 +88,7 @@ struct PackListView: View {
             }
         }
         .appBackground()
+        .keyboardDismissButton()
         .navigationTitle("Pacchetti")
         .navigationDestination(for: UUID.self) { id in PackDetailView(packID: id) }
         .toolbar {
@@ -130,6 +131,7 @@ struct PackFormView: View {
                 .glassRows()
             }
             .appBackground()
+            .keyboardDismissButton()
             .navigationTitle(pack == nil ? "Nuovo pacchetto" : "Modifica pacchetto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -221,6 +223,7 @@ struct PackPickerView: View {
                 .glassRows()
             }
             .appBackground()
+            .keyboardDismissButton()
             .navigationTitle("Salva in…")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -20,6 +20,7 @@ struct ContentView: View {
                 .tag(AppTab.settings)
         }
         .minimizingTabBar()
+        .preferredColorScheme(.dark)
         .sheet(item: $app.editorItem) { item in
             EditorView(item: item)
                 .environmentObject(store)

@@ -109,6 +109,7 @@ struct ImportView: View {
             .glassRows()
         }
         .appBackground()
+        .keyboardDismissButton()
         .navigationTitle("Importa")
         .onChange(of: photoItems) { items in
             guard !items.isEmpty else { return }
@@ -262,6 +263,7 @@ struct MediaPickerView: View {
                 .padding()
             }
             .appBackground()
+            .keyboardDismissButton()
             .navigationTitle(payload.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -332,16 +334,7 @@ struct RemoteMediaCell: View {
     @ViewBuilder
     private var preview: some View {
         if let url = media.previewURL {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFit()
-                case .failure:
-                    placeholder
-                default:
-                    ProgressView()
-                }
-            }
+            RemoteAnimatedImage(url: url, placeholderSymbol: media.kind == .video ? "play.rectangle.fill" : "photo")
         } else {
             placeholder
         }

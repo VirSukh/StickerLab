@@ -67,6 +67,19 @@ enum MediaDecoder {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
             throw AppError("Formato non supportato.")
         }
+        return try frames(from: source, maxPixel: maxPixel, maxFrames: maxFrames)
+    }
+
+    /// Decodes in-memory data (used for grid previews). Returns nil if unsupported.
+    static func decodeImage(data: Data, maxPixel: Int, maxFrames: Int) -> DecodedMedia? {
+        if sniff(data: data) == .webp {
+            return WebPCodec.decode(data, maxFrames: maxFrames)?.downscaled(maxPixel: maxPixel)
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return try? frames(from: source, maxPixel: maxPixel, maxFrames: maxFrames)
+    }
+
+    private static func frames(from source: CGImageSource, maxPixel: Int, maxFrames: Int) throws -> DecodedMedia {
         let count = CGImageSourceGetCount(source)
         guard count > 0 else { throw AppError("Immagine vuota o danneggiata.") }
 

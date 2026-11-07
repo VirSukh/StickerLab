@@ -43,6 +43,34 @@ enum SevenTVAPI {
         }
     }
 
+    enum Category: String, CaseIterable, Identifiable {
+        case top = "TOP"
+        case trendingDay = "TRENDING_DAY"
+        case trendingWeek = "TRENDING_WEEK"
+        case trendingMonth = "TRENDING_MONTH"
+        case new = "NEW"
+
+        var id: String { rawValue }
+        var label: String {
+            switch self {
+            case .top: return "Popolari"
+            case .trendingDay: return "Tendenza oggi"
+            case .trendingWeek: return "Tendenza settimana"
+            case .trendingMonth: return "Tendenza mese"
+            case .new: return "Nuove"
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .top: return "crown.fill"
+            case .trendingDay: return "flame.fill"
+            case .trendingWeek: return "chart.line.uptrend.xyaxis"
+            case .trendingMonth: return "calendar"
+            case .new: return "sparkles"
+            }
+        }
+    }
+
     private struct SearchResponse: Decodable {
         struct DataObject: Decodable {
             struct Emotes: Decodable {
@@ -57,7 +85,7 @@ enum SevenTVAPI {
     }
 
     /// Empty query = most popular emotes.
-    static func search(_ query: String, page: Int, filter: Filter, limit: Int = 60) async throws -> (emotes: [SevenTVEmote], total: Int) {
+    static func search(_ query: String, page: Int, category: Category = .top, filter: Filter, limit: Int = 60) async throws -> (emotes: [SevenTVEmote], total: Int) {
         let gql = """
         query SearchEmotes($query: String!, $page: Int, $limit: Int, $filter: EmoteSearchFilter, $sort: Sort) {
           emotes(query: $query, page: $page, limit: $limit, filter: $filter, sort: $sort) {
@@ -71,7 +99,7 @@ enum SevenTVAPI {
             "page": page,
             "limit": limit,
             "filter": [
-                "category": "TOP",
+                "category": category.rawValue,
                 "exact_match": false,
                 "case_sensitive": false,
                 "ignore_tags": false,

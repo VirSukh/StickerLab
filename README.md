@@ -4,7 +4,7 @@ App iOS per creare, modificare e fare il backup di pacchetti di sticker per What
 
 ## Funzioni
 
-- **Importazione**: galleria (foto, GIF, video, Live Photo), app File, link.
+- **Importazione**: galleria (foto, GIF, video, Live Photo), app File, link, menu **Condividi** di qualsiasi app.
 - **Link automatici**:
   - **7TV**: emote statiche e animate, set completi, set di un utente, ricerca e popolari nella scheda 7TV.
   - **Pinterest**: foto, GIF e video, anche con link `pin.it`.
@@ -22,7 +22,6 @@ Non serve un Mac: GitHub Actions genera il progetto con XcodeGen e compila un'IP
 - A ogni push su `main`: release **latest** con `StickerLab.ipa`
   (`https://github.com/<utente>/StickerLab/releases/download/latest/StickerLab.ipa`).
 - Tag `v1.0.0` → release con versione.
-- Il workflow **Screenshots** avvia l'app nel simulatore e salva le schermate come artifact.
 
 ## Installazione (sideload)
 

@@ -60,6 +60,7 @@ struct BatchImportView: View {
                 .glassRows()
             }
             .appBackground()
+            .keyboardDismissButton()
             .navigationTitle("Importazione multipla")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

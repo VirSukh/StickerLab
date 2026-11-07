@@ -26,10 +26,21 @@ struct SettingsView: View {
             .glassRows()
 
             Section {
-                TextField("https://cobalt.tuodominio.com/", text: $cobaltURL)
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
+                HStack {
+                    TextField("https://…trycloudflare.com/", text: $cobaltURL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button {
+                        if let text = UIPasteboard.general.string?.trimmed, !text.isEmpty {
+                            cobaltURL = text
+                            testResult = nil
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+                    .buttonStyle(.borderless)
+                }
                 SecureField("API key (facoltativa)", text: $cobaltKey)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -48,19 +59,20 @@ struct SettingsView: View {
             } header: {
                 Text("Server cobalt (facoltativo)")
             } footer: {
-                Text("Con un tuo server cobalt (ad esempio su AWS) l'app estrae media anche da Instagram, TikTok, X, Reddit, Tumblr e altri. Pinterest e 7TV funzionano anche senza.")
+                Text("Con un tuo server cobalt l'app estrae media anche da Instagram, TikTok, X, Reddit, Tumblr e altri. Pinterest e 7TV funzionano anche senza.")
             }
             .glassRows()
 
             Section {
-                Text("stickerlab://import?url=LINK")
-                    .font(.system(.footnote, design: .monospaced))
-                    .textSelection(.enabled)
+                Label("Nell'app (Instagram, TikTok, Pinterest, Safari…) tocca Condividi", systemImage: "square.and.arrow.up")
+                Label("Scorri le app e scegli StickerLab", systemImage: "app.badge")
+                Label("Se non c'è: tocca Altro e attiva StickerLab", systemImage: "plus.circle")
             } header: {
-                Text("Comandi Rapidi")
+                Text("Condividi da altre app")
             } footer: {
-                Text("Crea un Comando Rapido che riceve link dal menu Condividi e apre questo URL (con il link codificato): così puoi mandare un pin o un post a StickerLab direttamente dall'app Pinterest o da Safari.")
+                Text("StickerLab si apre ed estrae il media in automatico.")
             }
+            .font(.subheadline)
             .glassRows()
 
             Section("Informazioni") {
@@ -72,6 +84,7 @@ struct SettingsView: View {
             .glassRows()
         }
         .appBackground()
+        .keyboardDismissButton()
         .navigationTitle("Impostazioni")
     }
 

@@ -36,6 +36,10 @@ struct AppBackground: View {
     }
 }
 
+func hideKeyboard() {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+}
+
 // MARK: - Glass
 
 #if compiler(>=6.2)
@@ -139,6 +143,22 @@ extension View {
     /// Translucent rows for Form/List sections.
     func glassRows() -> some View {
         self.listRowBackground(Rectangle().fill(.ultraThinMaterial))
+    }
+
+    /// Adds a "hide keyboard" button above the keyboard and lets scrolling dismiss it.
+    func keyboardDismissButton() -> some View {
+        self.scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button {
+                        hideKeyboard()
+                    } label: {
+                        Label("Nascondi tastiera", systemImage: "keyboard.chevron.compact.down")
+                            .labelStyle(.titleAndIcon)
+                    }
+                }
+            }
     }
 
     /// iOS 26: the tab bar shrinks while scrolling down.
