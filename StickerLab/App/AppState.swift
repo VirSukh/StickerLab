@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum AppTab: Hashable {
-    case packs, importer, sevenTV, settings
+    case packs, importer, sevenTV, memes, settings
 }
 
 /// A local media file ready to be turned into a sticker.
@@ -10,6 +10,8 @@ struct ImportItem: Identifiable {
     let fileURL: URL
     var sourceURL: String?
     var name: String?
+    /// Imgflip template: the editor opens with top/bottom meme text.
+    var memeTemplate = false
 }
 
 struct BatchRequest: Identifiable {

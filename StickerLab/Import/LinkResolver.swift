@@ -33,6 +33,10 @@ enum LinkResolver {
             return try await SevenTVAPI.resolve(url)
         }
 
+        if FrankerFaceZAPI.handles(url), !(url.host ?? "").hasPrefix("cdn.") {
+            return try await FrankerFaceZAPI.resolve(url)
+        }
+
         if let kind = directKind(url) {
             let media = kind == .video
                 ? RemoteMedia(url: url, kind: .video, pageURL: nil)

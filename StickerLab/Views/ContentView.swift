@@ -12,9 +12,12 @@ struct ContentView: View {
             NavigationStack { ImportView() }
                 .tabItem { Label("Importa", systemImage: "square.and.arrow.down.fill") }
                 .tag(AppTab.importer)
-            NavigationStack { SevenTVView() }
-                .tabItem { Label("7TV", systemImage: "face.smiling.inverse") }
+            NavigationStack { EmoteBrowserView() }
+                .tabItem { Label("Emote", systemImage: "face.smiling.inverse") }
                 .tag(AppTab.sevenTV)
+            NavigationStack { MemeTemplatesView() }
+                .tabItem { Label("Meme", systemImage: "theatermasks.fill") }
+                .tag(AppTab.memes)
             NavigationStack { SettingsView() }
                 .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }
                 .tag(AppTab.settings)
@@ -60,7 +63,7 @@ struct ContentView: View {
         }
         .onAppear {
             Downloader.cleanTemporaryFiles()
-            DemoData.apply(app: app, store: store)
+            FontRegistry.registerAll()
         }
     }
 }

@@ -1,28 +1,41 @@
 import SwiftUI
 
-struct SevenTVView: View {
+/// Emote tab: 7TV and FrankerFaceZ, with categories, search, multi-select and long-press quick save.
+struct EmoteBrowserView: View {
     @EnvironmentObject private var app: AppState
     @EnvironmentObject private var store: PackStore
 
-    @State private var query = ""
-    @State private var category: SevenTVAPI.Category = .top
+    @State private var source: EmoteSource = .sevenTV
+    @State private var category: BrowseCategory = .top
     @State private var filter: SevenTVAPI.Filter = .all
-    @State private var emotes: [SevenTVEmote] = []
+    @State private var query = ""
+    @State private var activeQuery = ""
+    @State private var emotes: [EmoteItem] = []
     @State private var page = 1
-    @State private var total = 0
+    @State private var hasMore = false
     @State private var loading = false
     @State private var errorMessage: String?
+    @State private var notice: String?
     @State private var selecting = false
-    @State private var selected: [SevenTVEmote] = []
-    @State private var activeQuery = ""
-    @State private var searchDown = false
+    @State private var selected: [EmoteItem] = []
+
+    private var packName: String {
+        activeQuery.isEmpty ? "\(source.label) \(category.label)" : activeQuery
+    }
 
     var body: some View {
         ScrollView {
-            categoryBar
+            VStack(spacing: 10) {
+                Picker("Fonte", selection: $source) {
+                    ForEach(EmoteSource.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                categoryBar
+            }
 
-            if searchDown {
-                Label("La ricerca di 7TV è momentaneamente fuori servizio (problema dei loro server). Intanto ecco le emote globali; i link a emote e set funzionano.", systemImage: "exclamationmark.triangle.fill")
+            if let notice {
+                Label(notice, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(12)
@@ -38,18 +51,16 @@ struct SevenTVView: View {
                 .padding(32)
                 .glassCard(cornerRadius: 28)
                 .padding()
+            } else if !loading && emotes.isEmpty {
+                Text("Nessuna emote trovata.").foregroundStyle(.secondary).padding(32)
             }
+
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 12)], spacing: 16) {
                 ForEach(emotes) { emote in
                     EmoteCell(emote: emote, selected: selected.contains(emote))
                         .onTapGesture { tap(emote) }
                         .contextMenu {
-                            QuickSaveMenu(
-                                media: emote.remote,
-                                newPackName: activeQuery.isEmpty ? "7TV \(category.label)" : "7TV \(activeQuery)",
-                                store: store,
-                                app: app
-                            )
+                            QuickSaveMenu(media: emote.remote, newPackName: packName, store: store, app: app)
                         } preview: {
                             RemoteAnimatedImage(url: emote.previewURL)
                                 .frame(width: 220, height: 220)
@@ -66,7 +77,7 @@ struct SevenTVView: View {
         }
         .appBackground()
         .keyboardDismissButton()
-        .navigationTitle(activeQuery.isEmpty ? "7TV · \(category.label)" : "7TV · \(activeQuery)")
+        .navigationTitle(activeQuery.isEmpty ? "Emote · \(category.label)" : "Emote · \(activeQuery)")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Cerca emote")
         .onSubmit(of: .search) { Task { await reload() } }
@@ -92,7 +103,7 @@ struct SevenTVView: View {
                         let picks = selected
                         selecting = false
                         selected = []
-                        let name = activeQuery.isEmpty ? "7TV \(category.label)" : activeQuery
+                        let name = packName
                         Task { await app.download(picks.map(\.remote), packName: name) }
                     } label: {
                         Text(selected.isEmpty ? "Tocca le emote da importare" : "Importa \(selected.count) emote").bold()
@@ -100,6 +111,10 @@ struct SevenTVView: View {
                     .disabled(selected.isEmpty)
                 }
             }
+        }
+        .onChange(of: source) { newSource in
+            if !newSource.categories.contains(category) { category = .top }
+            Task { await reload() }
         }
         .onChange(of: filter) { _ in Task { await reload() } }
         .onChange(of: category) { _ in Task { await reload() } }
@@ -115,7 +130,7 @@ struct SevenTVView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             GlassGroup(spacing: 8) {
                 HStack(spacing: 8) {
-                    ForEach(SevenTVAPI.Category.allCases) { item in
+                    ForEach(source.categories) { item in
                         Button {
                             category = item
                         } label: {
@@ -130,13 +145,13 @@ struct SevenTVView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 8)
+                .padding(.vertical, 4)
             }
         }
         .opacity(activeQuery.isEmpty ? 1 : 0.5)
     }
 
-    private func tap(_ emote: SevenTVEmote) {
+    private func tap(_ emote: EmoteItem) {
         if selecting {
             if let index = selected.firstIndex(of: emote) {
                 selected.remove(at: index)
@@ -152,48 +167,65 @@ struct SevenTVView: View {
         activeQuery = query.trimmed
         page = 1
         emotes = []
-        total = 0
+        hasMore = false
+        notice = nil
         await fetch()
     }
 
     private func loadMore() async {
-        guard !loading, emotes.count < total else { return }
+        guard !loading, hasMore else { return }
         page += 1
         await fetch()
+    }
+
+    private func applyFilter(_ list: [EmoteItem]) -> [EmoteItem] {
+        switch filter {
+        case .all: return list
+        case .animated: return list.filter(\.animated)
+        case .still: return list.filter { !$0.animated }
+        }
     }
 
     private func fetch() async {
         guard !loading else { return }
         loading = true
         defer { loading = false }
+        let requestedSource = source
         do {
-            // Searches always look in the whole catalogue.
-            let searchCategory: SevenTVAPI.Category = activeQuery.isEmpty ? category : .top
-            let result = try await SevenTVAPI.search(activeQuery, page: page, category: searchCategory, filter: filter)
+            var result: [EmoteItem]
+            switch requestedSource {
+            case .sevenTV:
+                let searchCategory: SevenTVAPI.Category = activeQuery.isEmpty ? category.sevenTV : .top
+                let response = try await SevenTVAPI.search(activeQuery, page: page, category: searchCategory, filter: filter)
+                result = response.emotes.map(\.item)
+                hasMore = emotes.count + result.count < response.total && !result.isEmpty
+            case .ffz:
+                let response = try await FrankerFaceZAPI.search(activeQuery, page: page, category: activeQuery.isEmpty ? category : .top)
+                result = applyFilter(response.emotes)
+                hasMore = response.hasMore
+            }
+            guard requestedSource == source else { return }
             let existing = Set(emotes.map(\.id))
-            emotes.append(contentsOf: result.emotes.filter { !existing.contains($0.id) })
-            total = result.total
+            emotes.append(contentsOf: result.filter { !existing.contains($0.id) })
             errorMessage = nil
-            searchDown = false
         } catch {
+            guard requestedSource == source else { return }
             // 7TV's search sometimes fails on their side (LOAD_ERROR) while sets still work.
-            if page == 1, let global = try? await SevenTVAPI.setEmotes(id: "global"), !global.emotes.isEmpty {
-                var list = global.emotes
-                if filter == .animated { list = list.filter(\.animated) }
-                if filter == .still { list = list.filter { !$0.animated } }
-                emotes = list
-                total = list.count
-                searchDown = true
+            if requestedSource == .sevenTV, page == 1,
+               let global = try? await SevenTVAPI.setEmotes(id: "global"), !global.emotes.isEmpty {
+                emotes = applyFilter(global.emotes.map(\.item))
+                hasMore = false
+                notice = "La ricerca di 7TV è momentaneamente fuori servizio (problema dei loro server). Intanto ecco le emote globali; prova anche FrankerFaceZ."
                 errorMessage = nil
             } else {
-                errorMessage = "Impossibile caricare le emote 7TV.\n\(error.localizedDescription)"
+                errorMessage = "Impossibile caricare le emote.\n\(error.localizedDescription)"
             }
         }
     }
 }
 
 struct EmoteCell: View {
-    let emote: SevenTVEmote
+    let emote: EmoteItem
     let selected: Bool
 
     var body: some View {

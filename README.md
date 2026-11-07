@@ -11,7 +11,10 @@ App iOS per creare, modificare e fare il backup di pacchetti di sticker per What
   - Link diretti a immagini, GIF, WebP e MP4, oppure pagine con anteprima Open Graph.
   - **cobalt** (facoltativo, con un tuo server): Instagram, TikTok, X, Reddit…
   - **Browser integrato**: "Estrai da questa pagina" oppure "Media nella pagina".
-- **Editor**: zoom, posizione, rotazione, riempimento, testo con contorno, taglio di GIF e video, rimozione automatica dello sfondo (iOS 17+), emoji.
+- **Emote**: 7TV e FrankerFaceZ (popolari, tendenza, nuove, ricerca), salvataggio rapido con pressione lunga.
+- **Meme**: i modelli più usati di Imgflip, aperti nell'editor con testo sopra/sotto.
+- **Editor**: immagine (zoom, rotazione, specchio), più testi trascinabili con font da meme (Anton, Bangers, Permanent Marker, Luckiest Guy), disegno a mano (PencilKit), bordo sticker, rimozione sfondo (iOS 17+), taglio di GIF e video, emoji.
+- **Font**: inclusi con licenza libera (SIL OFL / Apache 2.0), licenze in `StickerLab/Resources/Fonts`.
 - **WhatsApp**: conversione automatica a 512×512 WebP entro i limiti (100 KB statici, 500 KB e 10 s animati) e invio con "Aggiungi a WhatsApp".
 - **Backup**: `.zip` completo o per singolo pacchetto, importazione di backup e di `.wastickers` (Android), esportazione `.wastickers`.
 
