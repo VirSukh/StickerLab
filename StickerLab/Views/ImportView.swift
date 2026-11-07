@@ -38,6 +38,7 @@ struct ImportView: View {
                     }
                     .font(.subheadline)
                 }
+                .glassRows()
             }
 
             Section {
@@ -52,7 +53,7 @@ struct ImportView: View {
                     } label: {
                         Label("Incolla", systemImage: "doc.on.clipboard")
                     }
-                    .buttonStyle(.bordered)
+                    .glassButton()
                     Spacer()
                     Button {
                         resolveLink()
@@ -63,7 +64,7 @@ struct ImportView: View {
                             Label("Estrai", systemImage: "arrow.down.circle.fill")
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .glassButton(prominent: true)
                     .disabled(link.trimmed.isEmpty || resolving)
                 }
                 Button { openBrowser() } label: {
@@ -74,6 +75,7 @@ struct ImportView: View {
             } footer: {
                 Text("Pinterest (foto, GIF, video, pin.it), 7TV (emote, set, utenti), link diretti e pagine con anteprima. Con un server cobalt configurato anche Instagram, TikTok, X, Reddit…")
             }
+            .glassRows()
 
             Section("Dal telefono") {
                 PhotosPicker(selection: $photoItems, maxSelectionCount: 30, matching: .any(of: [.images, .videos])) {
@@ -86,6 +88,7 @@ struct ImportView: View {
                     Label("File (immagini, GIF, WebP, video)", systemImage: "folder")
                 }
             }
+            .glassRows()
 
             Section {
                 Button { exportAll() } label: {
@@ -103,7 +106,9 @@ struct ImportView: View {
             } footer: {
                 Text("Il backup è un file .zip con tutti i pacchetti: salvalo su File o iCloud Drive. Puoi anche aprire un .zip o un .wastickers direttamente con StickerLab dal menu Condividi.")
             }
+            .glassRows()
         }
+        .appBackground()
         .navigationTitle("Importa")
         .onChange(of: photoItems) { items in
             guard !items.isEmpty else { return }
@@ -256,6 +261,7 @@ struct MediaPickerView: View {
                 }
                 .padding()
             }
+            .appBackground()
             .navigationTitle(payload.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -288,12 +294,11 @@ struct RemoteMediaCell: View {
 
     var body: some View {
         ZStack {
-            Checkerboard()
-            preview
+            preview.padding(8)
         }
         .aspectRatio(1, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 3))
+        .glassCard(cornerRadius: 22, tint: selected ? .accentColor : nil, interactive: true)
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2.5))
         .overlay(alignment: .topTrailing) {
             if selected {
                 Image(systemName: "checkmark.circle.fill")

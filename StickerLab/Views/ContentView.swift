@@ -19,6 +19,7 @@ struct ContentView: View {
                 .tabItem { Label("Impostazioni", systemImage: "gearshape.fill") }
                 .tag(AppTab.settings)
         }
+        .minimizingTabBar()
         .sheet(item: $app.editorItem) { item in
             EditorView(item: item)
                 .environmentObject(store)

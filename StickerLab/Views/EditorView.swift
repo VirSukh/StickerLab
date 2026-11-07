@@ -96,13 +96,14 @@ struct EditorView: View {
             .padding()
         }
         .scrollDismissesKeyboard(.interactively)
+        .appBackground()
     }
 
     // MARK: Preview
 
     private var preview: some View {
         GeometryReader { geo in
-            let side = geo.size.width
+            let side = geo.size.width - 12
             ZStack {
                 Checkerboard()
                 if let previewMedia {
@@ -113,8 +114,9 @@ struct EditorView: View {
                 if reloadingVideo { ProgressView().controlSize(.large) }
             }
             .frame(width: side, height: side)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.secondary.opacity(0.3)))
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .padding(6)
+            .glassCard(cornerRadius: 34)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture()
@@ -195,7 +197,7 @@ struct EditorView: View {
                     settings.fill = false
                 }
             }
-            .buttonStyle(.bordered)
+            .glassButton()
             Text("Trascina e pizzica l'anteprima per spostare e ingrandire.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -239,7 +241,7 @@ struct EditorView: View {
                 } label: {
                     Label(backgroundRemoved ? "Sfondo rimosso" : "Rimuovi sfondo automaticamente", systemImage: "wand.and.stars")
                 }
-                .buttonStyle(.borderedProminent)
+                .glassButton(prominent: true)
                 .disabled(backgroundRemoved)
                 if media.isAnimated {
                     Text("Su GIF e video viene applicato a ogni fotogramma: può richiedere qualche secondo.")

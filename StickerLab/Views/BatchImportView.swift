@@ -24,6 +24,7 @@ struct BatchImportView: View {
                 Section {
                     Label("\(request.items.count) elementi da importare", systemImage: "square.stack.3d.up")
                 }
+                .glassRows()
                 Section("Destinazione") {
                     Picker("Pacchetto", selection: $target) {
                         Text("Nuovo pacchetto").tag(UUID?.none)
@@ -36,6 +37,7 @@ struct BatchImportView: View {
                         Toggle("Animato", isOn: $newAnimated)
                     }
                 }
+                .glassRows()
                 .disabled(running || finished)
 
                 Section {
@@ -55,7 +57,9 @@ struct BatchImportView: View {
                 } footer: {
                     Text("Ogni elemento viene adattato a 512×512 automaticamente (dai video vengono presi i primi 3 secondi). Oltre 30 sticker viene creato un pacchetto aggiuntivo. Per ritocchi apri gli elementi uno alla volta.")
                 }
+                .glassRows()
             }
+            .appBackground()
             .navigationTitle("Importazione multipla")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

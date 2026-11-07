@@ -7,7 +7,7 @@ on:
 
 jobs:
   screenshots:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -37,7 +37,7 @@ jobs:
       - name: Boot simulator and take screenshots
         run: |
           set -x
-          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone 1[5-7] \(" | grep -v Plus | head -1 | grep -oE '[0-9A-F-]{36}')
+          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone 1[5-9]( Pro)? \(" | head -1 | grep -oE '[0-9A-F-]{36}')
           echo "Device: $DEVICE"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b

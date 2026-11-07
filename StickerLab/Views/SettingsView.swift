@@ -23,6 +23,7 @@ struct SettingsView: View {
                 TextField("Autore dei pacchetti", text: $defaultPublisher)
                 TextField("Emoji predefinita", text: $defaultEmoji)
             }
+            .glassRows()
 
             Section {
                 TextField("https://cobalt.tuodominio.com/", text: $cobaltURL)
@@ -49,6 +50,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Con un tuo server cobalt (ad esempio su AWS) l'app estrae media anche da Instagram, TikTok, X, Reddit, Tumblr e altri. Pinterest e 7TV funzionano anche senza.")
             }
+            .glassRows()
 
             Section {
                 Text("stickerlab://import?url=LINK")
@@ -59,6 +61,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Crea un Comando Rapido che riceve link dal menu Condividi e apre questo URL (con il link codificato): così puoi mandare un pin o un post a StickerLab direttamente dall'app Pinterest o da Safari.")
             }
+            .glassRows()
 
             Section("Informazioni") {
                 LabeledContent("Versione", value: version)
@@ -66,7 +69,9 @@ struct SettingsView: View {
                 LabeledContent("Sticker", value: "\(store.packs.reduce(0) { $0 + $1.stickers.count })")
                 LabeledContent("WhatsApp", value: WhatsAppExporter.isWhatsAppInstalled ? "Installato" : "Non trovato")
             }
+            .glassRows()
         }
+        .appBackground()
         .navigationTitle("Impostazioni")
     }
 

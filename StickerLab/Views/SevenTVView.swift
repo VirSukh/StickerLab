@@ -19,11 +19,13 @@ struct SevenTVView: View {
             if let errorMessage, emotes.isEmpty {
                 VStack(spacing: 12) {
                     Text(errorMessage).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Riprova") { Task { await reload() } }.buttonStyle(.bordered)
+                    Button("Riprova") { Task { await reload() } }.glassButton()
                 }
                 .padding(32)
+                .glassCard(cornerRadius: 28)
+                .padding()
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], spacing: 14) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 12)], spacing: 16) {
                 ForEach(emotes) { emote in
                     EmoteCell(emote: emote, selected: selected.contains(emote))
                         .onTapGesture { tap(emote) }
@@ -35,6 +37,7 @@ struct SevenTVView: View {
             .padding()
             if loading { ProgressView().padding() }
         }
+        .appBackground()
         .navigationTitle(activeQuery.isEmpty ? "7TV · Popolari" : "7TV · \(activeQuery)")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Cerca emote")
@@ -127,7 +130,6 @@ struct EmoteCell: View {
     var body: some View {
         VStack(spacing: 4) {
             ZStack {
-                RoundedRectangle(cornerRadius: 12).fill(Color(uiColor: .secondarySystemBackground))
                 AsyncImage(url: emote.previewURL) { phase in
                     if let image = phase.image {
                         image.resizable().interpolation(.high).scaledToFit()
@@ -137,10 +139,11 @@ struct EmoteCell: View {
                         ProgressView()
                     }
                 }
-                .padding(10)
+                .padding(12)
             }
             .aspectRatio(1, contentMode: .fit)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 3))
+            .glassCard(cornerRadius: 22, tint: selected ? .accentColor : nil, interactive: true)
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(selected ? Color.accentColor : Color.clear, lineWidth: 2.5))
             .overlay(alignment: .topTrailing) {
                 if selected {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.white, Color.accentColor).padding(4)

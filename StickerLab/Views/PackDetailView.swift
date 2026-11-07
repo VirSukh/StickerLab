@@ -31,20 +31,25 @@ struct PackDetailView: View {
                 Button {
                     do { try WhatsAppExporter.send(pack, store: store) } catch { errorMessage = error.localizedDescription }
                 } label: {
-                    Label("Aggiungi a WhatsApp", systemImage: "paperplane.fill").frame(maxWidth: .infinity)
+                    Label("Aggiungi a WhatsApp", systemImage: "paperplane.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .glassButton(prominent: true, tint: .green)
                 .controlSize(.large)
                 .disabled(!problems.isEmpty)
 
                 if !problems.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         ForEach(problems, id: \.self) { problem in
-                            Label(problem, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.orange)
+                            Label(problem, systemImage: "exclamationmark.circle").font(.caption.weight(.medium))
                         }
                     }
+                    .foregroundStyle(.orange)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .glassCard(cornerRadius: 20, tint: .orange)
                 }
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 12)], spacing: 12) {
@@ -56,12 +61,14 @@ struct PackDetailView: View {
                             app.preferredPackID = pack.id
                             app.selectedTab = .importer
                         } label: {
-                            RoundedRectangle(cornerRadius: 14)
-                                .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6]))
-                                .foregroundStyle(.secondary)
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                .foregroundStyle(.secondary.opacity(0.6))
                                 .aspectRatio(1, contentMode: .fit)
-                                .overlay(Image(systemName: "plus").font(.title2).foregroundStyle(.secondary))
+                                .overlay(Image(systemName: "plus").font(.title2.weight(.semibold)).foregroundStyle(.secondary))
+                                .glassCard(cornerRadius: 22, interactive: true)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
 
@@ -72,6 +79,7 @@ struct PackDetailView: View {
             }
             .padding()
         }
+        .appBackground()
         .navigationTitle(pack.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -127,37 +135,43 @@ struct PackDetailView: View {
     private func header(_ pack: StickerPack) -> some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14).fill(Color(uiColor: .tertiarySystemFill))
-                if let tray = store.trayURL(for: pack) { StickerThumbnail(url: tray).padding(6) }
+                if let tray = store.trayURL(for: pack) { StickerThumbnail(url: tray).padding(8) }
             }
-            .frame(width: 72, height: 72)
-            VStack(alignment: .leading, spacing: 4) {
+            .frame(width: 76, height: 76)
+            .glassCard(cornerRadius: 22)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(pack.name).font(.title3.weight(.bold))
                 Text(pack.publisher).foregroundStyle(.secondary)
-                Text("\(pack.stickers.count)/\(StickerPack.maxStickers) · \(pack.animated ? "Animato" : "Statico")")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text("\(pack.stickers.count)/\(StickerPack.maxStickers)")
+                    Label(pack.animated ? "Animato" : "Statico", systemImage: pack.animated ? "play.circle" : "photo")
+                }
+                .font(.caption.weight(.medium))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .glassCapsule()
             }
             Spacer()
         }
+        .padding(14)
+        .glassCard(cornerRadius: 30)
     }
 
     private func stickerCell(_ sticker: Sticker, pack: StickerPack, isTray: Bool) -> some View {
         ZStack(alignment: .topLeading) {
-            ZStack {
-                Checkerboard()
-                StickerThumbnail(url: store.fileURL(for: sticker, in: pack)).padding(6)
-            }
-            .aspectRatio(1, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
+            StickerThumbnail(url: store.fileURL(for: sticker, in: pack))
+                .padding(10)
+                .aspectRatio(1, contentMode: .fit)
             if isTray {
-                Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).padding(6)
+                Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).padding(8)
             }
             Text(sticker.emojis.joined())
-                .font(.caption)
-                .padding(4)
+                .font(.caption2)
+                .padding(6)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
+        .aspectRatio(1, contentMode: .fit)
+        .glassCard(cornerRadius: 22, interactive: true)
         .contentShape(Rectangle())
         .onTapGesture { previewSticker = sticker }
         .contextMenu {
@@ -204,6 +218,7 @@ struct StickerPreviewView: View {
                 Spacer()
             }
             .padding()
+            .appBackground()
             .navigationTitle("Anteprima")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Chiudi") { dismiss() } } }

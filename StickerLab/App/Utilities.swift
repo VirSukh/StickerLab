@@ -69,13 +69,13 @@ struct BusyOverlay: View {
     let message: String
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35).ignoresSafeArea()
+            Color.black.opacity(0.25).ignoresSafeArea()
             VStack(spacing: 12) {
-                ProgressView()
-                Text(message).font(.callout).multilineTextAlignment(.center)
+                ProgressView().controlSize(.large)
+                Text(message).font(.callout.weight(.medium)).multilineTextAlignment(.center)
             }
-            .padding(24)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .padding(28)
+            .glassCard(cornerRadius: 28)
         }
     }
 }
@@ -89,11 +89,10 @@ struct Checkerboard: View {
             for row in 0..<rows {
                 for column in 0..<columns where (row + column) % 2 == 0 {
                     let rect = CGRect(x: CGFloat(column) * square, y: CGFloat(row) * square, width: square, height: square)
-                    context.fill(Path(rect), with: .color(Color.gray.opacity(0.18)))
+                    context.fill(Path(rect), with: .color(Color.gray.opacity(0.14)))
                 }
             }
         }
-        .background(Color(uiColor: .systemBackground))
     }
 }
 
@@ -106,9 +105,9 @@ struct SectionBox<Content: View>: View {
             Text(title).font(.headline)
             content
         }
-        .padding()
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .glassCard(cornerRadius: 26)
     }
 }
 

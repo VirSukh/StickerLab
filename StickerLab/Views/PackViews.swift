@@ -7,14 +7,14 @@ struct PackRowLabel: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10).fill(Color(uiColor: .tertiarySystemFill))
                 if let trayURL {
-                    StickerThumbnail(url: trayURL).padding(4)
+                    StickerThumbnail(url: trayURL).padding(6)
                 } else {
                     Image(systemName: "face.dashed").foregroundStyle(.secondary)
                 }
             }
-            .frame(width: 48, height: 48)
+            .frame(width: 54, height: 54)
+            .glassCard(cornerRadius: 16)
             VStack(alignment: .leading, spacing: 3) {
                 Text(pack.name).font(.body.weight(.semibold)).foregroundStyle(.primary).lineLimit(1)
                 HStack(spacing: 6) {
@@ -47,26 +47,47 @@ struct PackListView: View {
                     Text("Importa immagini, GIF, video o emote 7TV per creare il tuo primo pacchetto di sticker WhatsApp.")
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
-                    HStack {
-                        Button("Importa") { app.selectedTab = .importer }.buttonStyle(.borderedProminent)
-                        Button("Nuovo pacchetto") { showNewPack = true }.buttonStyle(.bordered)
+                    GlassGroup {
+                        HStack {
+                            Button("Importa") { app.selectedTab = .importer }.glassButton(prominent: true)
+                            Button("Nuovo pacchetto") { showNewPack = true }.glassButton()
+                        }
                     }
                 }
                 .padding(32)
+                .glassCard(cornerRadius: 32)
+                .padding(24)
             } else {
-                List {
-                    ForEach(store.packs) { pack in
-                        NavigationLink(value: pack.id) {
-                            PackRowLabel(pack: pack, trayURL: store.trayURL(for: pack))
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        ForEach(store.packs) { pack in
+                            NavigationLink(value: pack.id) {
+                                HStack {
+                                    PackRowLabel(pack: pack, trayURL: store.trayURL(for: pack))
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(14)
+                                .contentShape(Rectangle())
+                                .glassCard(cornerRadius: 24, interactive: true)
+                            }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button(role: .destructive) { store.deletePack(id: pack.id) } label: {
+                                    Label("Elimina pacchetto", systemImage: "trash")
+                                }
+                            }
                         }
                     }
-                    .onDelete { offsets in
-                        let ids = offsets.map { store.packs[$0].id }
-                        ids.forEach { store.deletePack(id: $0) }
-                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
                 }
             }
         }
+        .appBackground()
         .navigationTitle("Pacchetti")
         .navigationDestination(for: UUID.self) { id in PackDetailView(packID: id) }
         .toolbar {
@@ -98,6 +119,7 @@ struct PackFormView: View {
                     TextField("Nome pacchetto", text: $name)
                     TextField("Autore", text: $publisher)
                 }
+                .glassRows()
                 Section {
                     Toggle("Pacchetto animato", isOn: $animated).disabled(typeLocked)
                 } footer: {
@@ -105,7 +127,9 @@ struct PackFormView: View {
                          ? "Il tipo non si può cambiare: il pacchetto contiene già sticker."
                          : "WhatsApp non permette di mischiare sticker statici e animati nello stesso pacchetto.")
                 }
+                .glassRows()
             }
+            .appBackground()
             .navigationTitle(pack == nil ? "Nuovo pacchetto" : "Modifica pacchetto")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -179,6 +203,7 @@ struct PackPickerView: View {
                             .disabled(pack.isFull)
                         }
                     }
+                    .glassRows()
                 }
                 Section {
                     TextField("Nome del nuovo pacchetto", text: $newName)
@@ -193,7 +218,9 @@ struct PackPickerView: View {
                 } footer: {
                     Text("Le animazioni salvate in un pacchetto statico useranno il primo fotogramma; le immagini fisse in un pacchetto animato diventano animazioni di un fotogramma.")
                 }
+                .glassRows()
             }
+            .appBackground()
             .navigationTitle("Salva in…")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
