@@ -50,11 +50,29 @@ enum CobaltClient {
             }
         case "error":
             let code = (json["error"] as? [String: Any])?["code"] as? String ?? "sconosciuto"
-            throw AppError(code)
+            throw AppError(friendlyMessage(for: code))
         default:
             break
         }
         throw AppError("Risposta non riconosciuta dal server.")
+    }
+
+    private static func friendlyMessage(for code: String) -> String {
+        let messages: [(String, String)] = [
+            ("auth.key", "API key mancante o non valida: controllala nelle Impostazioni."),
+            ("rate_exceeded", "Troppe richieste: riprova tra un minuto."),
+            ("fetch.empty", "Nessun media trovato: il post potrebbe essere privato o rimosso."),
+            ("fetch.fail", "Il sito non ha risposto al server (a volte blocca i server cloud)."),
+            ("fetch.critical", "Il sito ha bloccato la richiesta."),
+            ("link.unsupported", "Questo sito non è supportato da cobalt."),
+            ("link.invalid", "Link non valido."),
+            ("content.post.private", "Il post è privato."),
+            ("content.post.age", "Il post è limitato per età."),
+            ("content.video.unavailable", "Il video non è disponibile."),
+            ("content.too_long", "Il video è troppo lungo."),
+        ]
+        for (key, message) in messages where code.contains(key) { return message }
+        return "Errore del server (\(code))."
     }
 
     private static func media(url: URL, filename: String?, type: String?, thumb: URL?, page: String) -> RemoteMedia {
