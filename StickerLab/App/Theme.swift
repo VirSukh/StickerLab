@@ -2,37 +2,12 @@ import SwiftUI
 
 // MARK: - Background
 
-/// Soft colorful background: glass needs something behind it to refract.
+/// Pure black background on every screen.
 struct AppBackground: View {
-    @Environment(\.colorScheme) private var scheme
-
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            ZStack {
-                (scheme == .dark
-                    ? Color(red: 0.05, green: 0.04, blue: 0.11)
-                    : Color(red: 0.95, green: 0.94, blue: 1.0))
-                blob(Color(red: 0.55, green: 0.30, blue: 0.95), size: w * 1.15)
-                    .offset(x: -w * 0.35, y: -h * 0.32)
-                blob(Color(red: 0.98, green: 0.35, blue: 0.65), size: w * 0.95)
-                    .offset(x: w * 0.42, y: -h * 0.08)
-                blob(Color(red: 0.25, green: 0.50, blue: 1.0), size: w * 1.05)
-                    .offset(x: -w * 0.25, y: h * 0.30)
-                blob(Color(red: 0.20, green: 0.80, blue: 0.75), size: w * 0.75)
-                    .offset(x: w * 0.38, y: h * 0.42)
-            }
-            .frame(width: w, height: h)
-        }
-        .ignoresSafeArea()
-        .allowsHitTesting(false)
-    }
-
-    private func blob(_ color: Color, size: CGFloat) -> some View {
-        Circle()
-            .fill(color.opacity(scheme == .dark ? 0.42 : 0.30))
-            .frame(width: size, height: size)
-            .blur(radius: size * 0.32)
+        Color.black
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 }
 
