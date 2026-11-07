@@ -1,0 +1,77 @@
+name: Screenshots
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build for simulator
+        run: |
+          xcodebuild \
+            -project StickerLab.xcodeproj \
+            -scheme StickerLab \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            build > build-sim.log 2>&1 || {
+              grep -E "error:" build-sim.log | sort -u | head -100
+              tail -60 build-sim.log
+              exit 1
+            }
+
+      - name: Boot simulator and take screenshots
+        run: |
+          set -x
+          DEVICE=$(xcrun simctl list devices available | grep -E "iPhone 1[5-7] \(" | grep -v Plus | head -1 | grep -oE '[0-9A-F-]{36}')
+          echo "Device: $DEVICE"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl status_bar "$DEVICE" override --time "9:41" --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 || true
+          xcrun simctl install "$DEVICE" build/Build/Products/Debug-iphonesimulator/StickerLab.app
+          mkdir -p shots
+
+          shoot() {
+            name=$1; screen=$2; wait=$3
+            xcrun simctl terminate "$DEVICE" com.vir.stickerlab || true
+            xcrun simctl launch "$DEVICE" com.vir.stickerlab -screenshot "$screen"
+            sleep "$wait"
+            xcrun simctl io "$DEVICE" screenshot "shots/$name.png"
+          }
+
+          # First launch also generates the demo packs.
+          shoot 1-pacchetti packs 25
+          shoot 2-dettaglio detail 8
+          shoot 3-animato animated 8
+          shoot 4-editor editor 10
+          shoot 5-importa importer 6
+          shoot 6-7tv seventv 15
+          shoot 7-impostazioni settings 6
+
+          xcrun simctl ui "$DEVICE" appearance dark
+          shoot 8-dettaglio-scuro detail 8
+          shoot 9-editor-scuro editor 10
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: |
+            shots/*.png
+            build-sim.log
+          if-no-files-found: ignore
