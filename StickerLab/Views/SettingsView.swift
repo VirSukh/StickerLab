@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var store: PackStore
+    @EnvironmentObject private var app: AppState
     @AppStorage("defaultPublisher") private var defaultPublisher = ""
     @AppStorage("defaultEmoji") private var defaultEmoji = "😀"
     @AppStorage(CobaltClient.urlKey) private var cobaltURL = ""
@@ -96,6 +97,30 @@ struct SettingsView: View {
                 Text("GIPHY")
             } footer: {
                 Text("Serve per le fonti GIF e Sticker nella scheda Emote. Sul sito: Create an App → API → copia la API Key.")
+            }
+            .glassRows()
+
+            Section {
+                if app.importLog.isEmpty {
+                    Text("Ancora nessuna importazione in questa sessione.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(app.importLog.prefix(25).enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(line.contains("✗") ? .red : .primary)
+                    }
+                    Button {
+                        UIPasteboard.general.string = app.importLog.joined(separator: "\n")
+                    } label: {
+                        Label("Copia registro", systemImage: "doc.on.doc")
+                    }
+                }
+            } header: {
+                Text("Registro importazione")
+            } footer: {
+                Text("Se un'importazione non funziona, fai uno screenshot di questa sezione.")
             }
             .glassRows()
 

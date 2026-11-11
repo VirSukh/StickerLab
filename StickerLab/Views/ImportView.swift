@@ -222,28 +222,39 @@ struct ImportView: View {
     private func handleFiles(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
-            app.alertMessage = error.localizedDescription
+            app.logImport("✗ Selettore: \(error.localizedDescription)")
+            app.alertLater(error.localizedDescription)
         case .success(let urls):
+            app.logImport("Selezionati \(urls.count) file (\(importerMode == .backup ? "backup" : "media"))")
             var items: [ImportItem] = []
             var archives: [URL] = []
-            var failures = 0
+            var failures: [String] = []
             for url in urls {
                 let access = url.startAccessingSecurityScopedResource()
                 defer { if access { url.stopAccessingSecurityScopedResource() } }
-                if BackupManager.isArchive(url) {
-                    // Copy while we have access: the import runs after the picker closes.
-                    if let copy = try? BackupManager.copyToTemporary(url) { archives.append(copy) } else { failures += 1 }
-                } else if let copy = try? Downloader.importLocalFile(url) {
-                    items.append(ImportItem(fileURL: copy, sourceURL: nil, name: url.lastPathComponent))
-                } else {
-                    failures += 1
+                let isArchive = importerMode == .backup || BackupManager.isArchive(url)
+                app.logImport("\(url.lastPathComponent): \(isArchive ? "archivio" : "media"), accesso \(access ? "ok" : "non concesso")")
+                do {
+                    if isArchive {
+                        // Copy while we have access: the import runs after the picker closes.
+                        archives.append(try BackupManager.copyToTemporary(url))
+                        app.logImport("Copia riuscita")
+                    } else {
+                        let copy = try Downloader.importLocalFile(url)
+                        items.append(ImportItem(fileURL: copy, sourceURL: nil, name: url.lastPathComponent))
+                    }
+                } catch {
+                    app.logImport("✗ \(url.lastPathComponent): \(error.localizedDescription)")
+                    failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
                 }
             }
             if !archives.isEmpty {
                 app.importBackups(archives, store: store)
-            } else {
-                if failures > 0 { app.alertMessage = "\(failures) file non supportati." }
+            } else if !items.isEmpty {
+                if !failures.isEmpty { app.alertLater("\(failures.count) file non importati.\n" + failures.joined(separator: "\n")) }
                 app.openDelayed(items)
+            } else {
+                app.alertLater(failures.isEmpty ? "Nessun file importato." : failures.joined(separator: "\n"))
             }
         }
     }

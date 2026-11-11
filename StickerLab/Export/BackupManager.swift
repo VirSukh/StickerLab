@@ -94,15 +94,28 @@ enum BackupManager {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let ext = url.pathExtension.isEmpty ? "zip" : url.pathExtension
         let destination = folder.appendingPathComponent("\(UUID().uuidString).\(ext)")
-        try FileManager.default.copyItem(at: url, to: destination)
+        // Coordinated read: makes iCloud Drive download the file if it is only in the cloud.
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [.withoutChanges], error: &coordinationError) { readable in
+            do {
+                try FileManager.default.copyItem(at: readable, to: destination)
+            } catch {
+                copyError = error
+            }
+        }
+        if let error = coordinationError ?? copyError {
+            throw AppError("Impossibile leggere il file (se è su iCloud, scaricalo prima in File): \(error.localizedDescription)")
+        }
         return destination
     }
 
     /// Returns the number of imported packs. Unzipping runs off the main thread.
     @MainActor
-    static func importArchive(at url: URL, into store: PackStore) async throws -> Int {
+    static func importArchive(at url: URL, into store: PackStore, log: @escaping (String) -> Void = { _ in }) async throws -> Int {
         let work = try workDirectory()
         defer { try? FileManager.default.removeItem(at: work) }
+        log("Estrazione dello zip…")
         do {
             try await Task.detached(priority: .userInitiated) {
                 try FileManager.default.unzipItem(at: url, to: work)
@@ -110,8 +123,10 @@ enum BackupManager {
         } catch {
             throw AppError("Non è un archivio valido: \(error.localizedDescription)")
         }
+        log("Estratti \(allFiles(in: work).count) file")
 
         if let manifestURL = find(named: "manifest.json", in: work) {
+            log("Backup StickerLab trovato (manifest.json)")
             let decoder = JSONDecoder()
             let manifest: Manifest
             do {
@@ -123,13 +138,18 @@ enum BackupManager {
             var count = 0
             for pack in manifest.packs.reversed() {
                 let folder = packsFolder.appendingPathComponent(pack.id.uuidString, isDirectory: true)
-                guard FileManager.default.fileExists(atPath: folder.path) else { continue }
+                guard FileManager.default.fileExists(atPath: folder.path) else {
+                    log("Cartella mancante per \(pack.name): saltato")
+                    continue
+                }
                 try store.adoptPack(pack, from: folder)
+                log("Aggiunto \(pack.name) (\(pack.stickers.count) sticker)")
                 count += 1
             }
             guard count > 0 else { throw AppError("Il backup non contiene pacchetti.") }
             return count
         }
+        log("Nessun manifest: provo come .wastickers")
         return try importWAStickers(from: work, into: store)
     }
 

@@ -32,6 +32,23 @@ final class AppState: ObservableObject {
     @Published var pendingLink: String?
     /// Pack that new stickers should go to by default.
     @Published var preferredPackID: UUID?
+    /// Step-by-step log of the last imports (Impostazioni → Registro importazione).
+    @Published var importLog: [String] = []
+
+    func logImport(_ text: String) {
+        let time = Date().formatted(date: .omitted, time: .standard)
+        importLog.insert("\(time)  \(text)", at: 0)
+        if importLog.count > 60 { importLog.removeLast(importLog.count - 60) }
+    }
+
+    /// Alerts set while a picker/sheet is closing get lost: show them a moment later.
+    func alertLater(_ message: String) {
+        Task {
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            alertMessage = message
+        }
+    }
+
     /// Short confirmation shown at the top of the screen.
     @Published var toast: String?
     /// Navigation path of the Packs tab.
@@ -146,10 +163,17 @@ final class AppState: ObservableObject {
             var imported = 0
             var errors: [String] = []
             for url in urls {
+                let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+                logImport("Importazione archivio (\(formatBytes(size)))")
                 do {
-                    imported += try await BackupManager.importArchive(at: url, into: store)
+                    let count = try await BackupManager.importArchive(at: url, into: store) { [weak self] step in
+                        self?.logImport(step)
+                    }
+                    imported += count
+                    logImport("✓ Importati \(count) pacchetti")
                 } catch {
-                    errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    logImport("✗ \(error.localizedDescription)")
+                    errors.append(error.localizedDescription)
                 }
                 try? FileManager.default.removeItem(at: url)
             }
