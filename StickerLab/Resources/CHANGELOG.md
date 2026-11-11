@@ -1,3 +1,6 @@
+## 1.1.3
+- Nuova icona dell'app: sticker con faccina su sfondo nero
+
 ## 1.1.2
 - Importa backup: lo zip viene scaricato da iCloud Drive se serve, e ogni errore viene mostrato (prima alcuni fallivano in silenzio)
 - Nuovo "Registro importazione" in Impostazioni: mostra ogni passaggio, utile se qualcosa non funziona
