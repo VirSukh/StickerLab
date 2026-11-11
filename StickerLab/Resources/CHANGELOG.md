@@ -1,3 +1,6 @@
+## 1.1.1
+- Corretto: il pulsante "Importa backup (.zip) o .wastickers" non rispondeva al tocco
+
 ## 1.1.0
 - Versioni dell'app: numero di versione e build in Impostazioni, release separata su GitHub per ogni versione
 - Schermata Novità: si apre da sola dopo ogni aggiornamento (anche da Impostazioni → Novità)

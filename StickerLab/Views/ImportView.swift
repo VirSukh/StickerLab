@@ -19,7 +19,6 @@ struct ImportView: View {
     @State private var resolving = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var importerPresented = false
-    @State private var backupImporterPresented = false
     @State private var importerMode: ImporterMode = .media
     @State private var picker: MediaPickerPayload?
     @State private var browser: IdentifiableURL?
@@ -84,8 +83,7 @@ struct ImportView: View {
                     Label("Galleria (foto, GIF, video)", systemImage: "photo.on.rectangle.angled")
                 }
                 Button {
-                    importerMode = .media
-                    importerPresented = true
+                    presentImporter(.media)
                 } label: {
                     Label("File (immagini, GIF, WebP, video)", systemImage: "folder")
                 }
@@ -103,30 +101,9 @@ struct ImportView: View {
                 }
                 .disabled(store.packs.isEmpty)
                 Button {
-                    backupImporterPresented = true
+                    presentImporter(.backup)
                 } label: {
                     Label("Importa backup (.zip) o .wastickers", systemImage: "square.and.arrow.down")
-                }
-                // Own single-selection importer (on its own view: two importers on the same view conflict).
-                // With multiple selection, tapping a file only ticks it and nothing seems to happen.
-                .fileImporter(
-                    isPresented: $backupImporterPresented,
-                    allowedContentTypes: [.zip, .archive, Self.wastickersType],
-                    allowsMultipleSelection: false
-                ) { result in
-                    switch result {
-                    case .failure(let error):
-                        app.alertMessage = error.localizedDescription
-                    case .success(let urls):
-                        guard let url = urls.first else { return }
-                        let access = url.startAccessingSecurityScopedResource()
-                        defer { if access { url.stopAccessingSecurityScopedResource() } }
-                        if let copy = try? BackupManager.copyToTemporary(url) {
-                            app.importBackups([copy], store: store)
-                        } else {
-                            app.alertMessage = "Impossibile leggere il file selezionato."
-                        }
-                    }
                 }
             } header: {
                 Text("Backup")
@@ -146,8 +123,10 @@ struct ImportView: View {
         .onAppear { consumePendingLink() }
         .fileImporter(
             isPresented: $importerPresented,
-            allowedContentTypes: [.image, .gif, .webP, .movie, .mpeg4Movie, .quickTimeMovie, .zip, Self.wastickersType, .data],
-            allowsMultipleSelection: true
+            allowedContentTypes: importerMode == .backup
+                ? [.zip, .archive, Self.wastickersType]
+                : [.image, .gif, .webP, .movie, .mpeg4Movie, .quickTimeMovie, .zip, Self.wastickersType, .data],
+            allowsMultipleSelection: importerMode == .media
         ) { result in
             handleFiles(result)
         }
@@ -230,6 +209,13 @@ struct ImportView: View {
         } else {
             app.open(imported)
         }
+    }
+
+    /// Sets the mode first and presents on the next turn: presenting in the same update
+    /// can show the picker with the previous mode's file types / selection style.
+    private func presentImporter(_ mode: ImporterMode) {
+        importerMode = mode
+        DispatchQueue.main.async { importerPresented = true }
     }
 
     /// One importer for everything: archives (.zip / .wastickers) are recognised by their content.
