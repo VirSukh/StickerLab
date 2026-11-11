@@ -37,7 +37,7 @@ enum TransferPage {
 <body>
 <main>
   <h1>Invia sticker a StickerLab</h1>
-  <p class="sub">Scegli il pacchetto e trascina qui GIF, immagini, WebP o video: finiscono direttamente nell'iPhone.</p>
+  <p class="sub">Scegli il pacchetto e trascina qui GIF, immagini, WebP o video: finiscono direttamente nell'iPhone. Puoi trascinare anche un backup .zip per ripristinare i pacchetti.</p>
 
   <div class="card">
     <label for="pack">Pacchetto di destinazione</label>
@@ -51,8 +51,8 @@ enum TransferPage {
 
   <div class="card" id="drop">
     <strong>Trascina qui i file</strong>
-    <span>oppure clicca per sceglierli · GIF, PNG, JPG, WebP, MP4, MOV</span>
-    <input type="file" id="files" multiple accept="image/*,video/*,.webp" hidden>
+    <span>oppure clicca per sceglierli · GIF, PNG, JPG, WebP, MP4, MOV · backup .zip</span>
+    <input type="file" id="files" multiple accept="image/*,video/*,.webp,.zip,.wastickers" hidden>
   </div>
 
   <div class="card" id="results" hidden>

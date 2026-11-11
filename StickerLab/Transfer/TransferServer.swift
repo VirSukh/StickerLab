@@ -239,6 +239,22 @@ final class TransferServer: ObservableObject {
     private func upload(_ request: HTTPRequest) async -> HTTPResponse {
         guard let store else { return .json(["ok": false, "message": "App non pronta"], status: 503) }
         let fileName = request.query["filename"] ?? "file"
+
+        // A backup (.zip / .wastickers) restores its packs instead of becoming a sticker.
+        if request.body.prefix(4) == Data([0x50, 0x4B, 0x03, 0x04]) {
+            let archive = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).zip")
+            defer { try? FileManager.default.removeItem(at: archive) }
+            do {
+                try request.body.write(to: archive)
+                let count = try await BackupManager.importArchive(at: archive, into: store)
+                received += 1
+                log("✓ \(fileName): ripristinati \(count) pacchetti")
+                return .json(["ok": true, "message": "Backup importato: \(count) pacchetti", "reload": true])
+            } catch {
+                log("✗ \(fileName): \(error.localizedDescription)")
+                return .json(["ok": false, "message": error.localizedDescription])
+            }
+        }
         guard let packID = UUID(uuidString: request.query["pack"] ?? ""), var pack = store.pack(id: packID) else {
             return .json(["ok": false, "message": "Pacchetto non trovato"])
         }

@@ -9,3 +9,5 @@ build.log
 chill.txt
 server/
 cobalt-hf/
+*.zip
+*.wastickers
