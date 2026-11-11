@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var store: PackStore
     @EnvironmentObject private var app: AppState
+    @State private var showWhatsNew = false
 
     var body: some View {
         TabView(selection: $app.selectedTab) {
@@ -61,7 +62,12 @@ struct ContentView: View {
         } message: {
             Text(app.alertMessage ?? "")
         }
+        .sheet(isPresented: $showWhatsNew) { WhatsNewView() }
         .onAppear {
+            let current = ReleaseNotes.currentVersion
+            let seen = UserDefaults.standard.string(forKey: "lastSeenVersion")
+            if seen != nil, seen != current { showWhatsNew = true }
+            UserDefaults.standard.set(current, forKey: "lastSeenVersion")
             Downloader.cleanTemporaryFiles()
             FontRegistry.registerAll()
             FrankerFaceZAPI.prefetch()

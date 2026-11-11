@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(CobaltClient.apiKeyKey) private var cobaltKey = ""
     @AppStorage(GiphyAPI.keyKey) private var giphyKey = ""
 
+    @State private var showWhatsNew = false
     @State private var testResult: String?
     @State private var testing = false
 
@@ -100,6 +101,11 @@ struct SettingsView: View {
 
             Section("Informazioni") {
                 LabeledContent("Versione", value: version)
+                Button {
+                    showWhatsNew = true
+                } label: {
+                    Label("Novità", systemImage: "sparkles")
+                }
                 LabeledContent("Pacchetti", value: "\(store.packs.count)")
                 LabeledContent("Sticker", value: "\(store.packs.reduce(0) { $0 + $1.stickers.count })")
                 LabeledContent("WhatsApp", value: WhatsAppExporter.isWhatsAppInstalled ? "Installato" : "Non trovato")
@@ -109,6 +115,7 @@ struct SettingsView: View {
         .appBackground()
         .keyboardDismissButton()
         .navigationTitle("Impostazioni")
+        .sheet(isPresented: $showWhatsNew) { WhatsNewView() }
     }
 
     private func test() async {
