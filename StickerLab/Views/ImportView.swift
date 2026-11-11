@@ -125,10 +125,8 @@ struct ImportView: View {
         .onAppear { consumePendingLink() }
         .fileImporter(
             isPresented: $importerPresented,
-            allowedContentTypes: importerMode == .media
-                ? [.image, .gif, .webP, .movie, .mpeg4Movie, .quickTimeMovie]
-                : [.zip, Self.wastickersType],
-            allowsMultipleSelection: importerMode == .media
+            allowedContentTypes: [.image, .gif, .webP, .movie, .mpeg4Movie, .quickTimeMovie, .zip, Self.wastickersType, .data],
+            allowsMultipleSelection: true
         ) { result in
             handleFiles(result)
         }
@@ -213,26 +211,30 @@ struct ImportView: View {
         }
     }
 
+    /// One importer for everything: archives (.zip / .wastickers) are recognised by their content.
     private func handleFiles(_ result: Result<[URL], Error>) {
         switch result {
         case .failure(let error):
             app.alertMessage = error.localizedDescription
         case .success(let urls):
-            switch importerMode {
-            case .backup:
-                if let url = urls.first { app.importBackup(url, store: store) }
-            case .media:
-                var items: [ImportItem] = []
-                var failures = 0
-                for url in urls {
-                    let access = url.startAccessingSecurityScopedResource()
-                    defer { if access { url.stopAccessingSecurityScopedResource() } }
-                    if let copy = try? Downloader.importLocalFile(url) {
-                        items.append(ImportItem(fileURL: copy, sourceURL: nil, name: url.lastPathComponent))
-                    } else {
-                        failures += 1
-                    }
+            var items: [ImportItem] = []
+            var archives: [URL] = []
+            var failures = 0
+            for url in urls {
+                let access = url.startAccessingSecurityScopedResource()
+                defer { if access { url.stopAccessingSecurityScopedResource() } }
+                if BackupManager.isArchive(url) {
+                    // Copy while we have access: the import runs after the picker closes.
+                    if let copy = try? BackupManager.copyToTemporary(url) { archives.append(copy) } else { failures += 1 }
+                } else if let copy = try? Downloader.importLocalFile(url) {
+                    items.append(ImportItem(fileURL: copy, sourceURL: nil, name: url.lastPathComponent))
+                } else {
+                    failures += 1
                 }
+            }
+            if !archives.isEmpty {
+                app.importBackups(archives, store: store)
+            } else {
                 if failures > 0 { app.alertMessage = "\(failures) file non supportati." }
                 app.openDelayed(items)
             }

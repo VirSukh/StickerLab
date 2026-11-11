@@ -126,21 +126,44 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Imports from "Open in…" / share: copy first (the original may be security-scoped or in Inbox).
     func importBackup(_ url: URL, store: PackStore) {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        busyMessage = "Importazione backup…"
-        defer { busyMessage = nil }
-        do {
-            let count = try BackupManager.importArchive(at: url, into: store)
-            selectedTab = .packs
-            alertMessage = count == 1 ? "Importato 1 pacchetto." : "Importati \(count) pacchetti."
-        } catch {
-            alertMessage = error.localizedDescription
+        guard let copy = try? BackupManager.copyToTemporary(url) else {
+            alertMessage = "Impossibile leggere il file."
+            return
         }
-        // Files opened with "Open in" are copied into Documents/Inbox: clean them up.
-        if url.path.contains("/Inbox/") {
-            try? FileManager.default.removeItem(at: url)
+        if url.path.contains("/Inbox/") { try? FileManager.default.removeItem(at: url) }
+        importBackups([copy], store: store)
+    }
+
+    /// Runs after a short delay so the document picker has closed and the result alert is shown.
+    func importBackups(_ urls: [URL], store: PackStore) {
+        Task {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            busyMessage = "Importazione backup…"
+            var imported = 0
+            var errors: [String] = []
+            for url in urls {
+                do {
+                    imported += try await BackupManager.importArchive(at: url, into: store)
+                } catch {
+                    errors.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                }
+                try? FileManager.default.removeItem(at: url)
+            }
+            busyMessage = nil
+            if imported > 0 {
+                selectedTab = .packs
+                packsPath = []
+            }
+            var message = imported == 1 ? "Importato 1 pacchetto." : "Importati \(imported) pacchetti."
+            if !errors.isEmpty {
+                let prefix = imported > 0 ? message + "\n\n" : "Importazione non riuscita.\n\n"
+                message = prefix + errors.joined(separator: "\n")
+            }
+            alertMessage = message
         }
     }
 }

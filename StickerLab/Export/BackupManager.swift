@@ -78,20 +78,47 @@ enum BackupManager {
 
     // MARK: Import
 
-    /// Returns the number of imported packs.
+    /// ZIP files start with "PK\u{3}\u{4}" (also .wastickers, which are zips).
+    static func isArchive(_ url: URL) -> Bool {
+        let ext = url.pathExtension.lowercased()
+        if ext == "zip" || ext == "wastickers" { return true }
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        let head = (try? handle.read(upToCount: 4)) ?? Data()
+        return head == Data([0x50, 0x4B, 0x03, 0x04])
+    }
+
+    /// Copies a picked / shared file into our temporary folder (keeps its extension).
+    static func copyToTemporary(_ url: URL) throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("incoming", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let ext = url.pathExtension.isEmpty ? "zip" : url.pathExtension
+        let destination = folder.appendingPathComponent("\(UUID().uuidString).\(ext)")
+        try FileManager.default.copyItem(at: url, to: destination)
+        return destination
+    }
+
+    /// Returns the number of imported packs. Unzipping runs off the main thread.
     @MainActor
-    static func importArchive(at url: URL, into store: PackStore) throws -> Int {
+    static func importArchive(at url: URL, into store: PackStore) async throws -> Int {
         let work = try workDirectory()
         defer { try? FileManager.default.removeItem(at: work) }
         do {
-            try FileManager.default.unzipItem(at: url, to: work)
+            try await Task.detached(priority: .userInitiated) {
+                try FileManager.default.unzipItem(at: url, to: work)
+            }.value
         } catch {
-            throw AppError("Impossibile aprire l'archivio: \(error.localizedDescription)")
+            throw AppError("Non è un archivio valido: \(error.localizedDescription)")
         }
 
         if let manifestURL = find(named: "manifest.json", in: work) {
             let decoder = JSONDecoder()
-            let manifest = try decoder.decode(Manifest.self, from: Data(contentsOf: manifestURL))
+            let manifest: Manifest
+            do {
+                manifest = try decoder.decode(Manifest.self, from: Data(contentsOf: manifestURL))
+            } catch {
+                throw AppError("Il file manifest.json del backup è danneggiato.")
+            }
             let packsFolder = manifestURL.deletingLastPathComponent().appendingPathComponent("packs", isDirectory: true)
             var count = 0
             for pack in manifest.packs.reversed() {
