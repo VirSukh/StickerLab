@@ -23,6 +23,7 @@ struct ImportView: View {
     @State private var picker: MediaPickerPayload?
     @State private var browser: IdentifiableURL?
     @State private var shareItem: IdentifiableURL?
+    @State private var showTransfer = false
 
     private static let wastickersType = UTType(filenameExtension: "wastickers") ?? .zip
 
@@ -87,6 +88,11 @@ struct ImportView: View {
                 } label: {
                     Label("File (immagini, GIF, WebP, video)", systemImage: "folder")
                 }
+                Button {
+                    showTransfer = true
+                } label: {
+                    Label("Ricevi dal PC (Wi-Fi)", systemImage: "desktopcomputer.and.arrow.down")
+                }
             }
             .glassRows()
 
@@ -139,6 +145,7 @@ struct ImportView: View {
             }
         }
         .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
+        .sheet(isPresented: $showTransfer) { TransferView() }
     }
 
     // MARK: Actions

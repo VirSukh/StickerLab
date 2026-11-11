@@ -54,6 +54,7 @@ targets:
         LSApplicationQueriesSchemes:
           - whatsapp
         UIFileSharingEnabled: true
+        NSLocalNetworkUsageDescription: Serve per ricevere GIF, immagini e video dal PC collegato alla stessa rete Wi-Fi.
         LSSupportsOpeningDocumentsInPlace: false
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
