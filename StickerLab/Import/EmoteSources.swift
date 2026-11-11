@@ -16,11 +16,23 @@ extension SevenTVEmote {
 }
 
 enum EmoteSource: String, CaseIterable, Identifiable {
-    case sevenTV, ffz
+    case sevenTV, ffz, giphyGifs, giphyStickers
     var id: String { rawValue }
-    var label: String { self == .sevenTV ? "7TV" : "FrankerFaceZ" }
+    var label: String {
+        switch self {
+        case .sevenTV: return "7TV"
+        case .ffz: return "FFZ"
+        case .giphyGifs: return "GIF"
+        case .giphyStickers: return "Sticker"
+        }
+    }
+    var isGiphy: Bool { self == .giphyGifs || self == .giphyStickers }
     var categories: [BrowseCategory] {
-        self == .sevenTV ? BrowseCategory.allCases : [.top, .new]
+        switch self {
+        case .sevenTV: return BrowseCategory.allCases
+        case .ffz: return [.top, .new]
+        case .giphyGifs, .giphyStickers: return [.trendingDay]
+        }
     }
 }
 

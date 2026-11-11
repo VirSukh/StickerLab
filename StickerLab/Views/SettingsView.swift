@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("defaultEmoji") private var defaultEmoji = "😀"
     @AppStorage(CobaltClient.urlKey) private var cobaltURL = ""
     @AppStorage(CobaltClient.apiKeyKey) private var cobaltKey = ""
+    @AppStorage(GiphyAPI.keyKey) private var giphyKey = ""
 
     @State private var testResult: String?
     @State private var testing = false
@@ -73,6 +74,28 @@ struct SettingsView: View {
                 Text("StickerLab si apre ed estrae il media in automatico.")
             }
             .font(.subheadline)
+            .glassRows()
+
+            Section {
+                HStack {
+                    SecureField("Chiave API GIPHY", text: $giphyKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button {
+                        if let text = UIPasteboard.general.string?.trimmed, !text.isEmpty { giphyKey = text }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                    }
+                    .buttonStyle(.borderless)
+                }
+                Link(destination: URL(string: "https://developers.giphy.com/dashboard/")!) {
+                    Label("Crea una chiave gratuita", systemImage: "arrow.up.right.square")
+                }
+            } header: {
+                Text("GIPHY")
+            } footer: {
+                Text("Serve per le fonti GIF e Sticker nella scheda Emote. Sul sito: Create an App → API → copia la API Key.")
+            }
             .glassRows()
 
             Section("Informazioni") {

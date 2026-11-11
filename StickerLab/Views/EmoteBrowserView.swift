@@ -32,6 +32,11 @@ struct EmoteBrowserView: View {
                 .pickerStyle(.segmented)
                 .padding(.horizontal)
                 categoryBar
+                if source.isGiphy {
+                    Text("Powered by GIPHY")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let notice {
@@ -46,7 +51,12 @@ struct EmoteBrowserView: View {
             if let errorMessage, emotes.isEmpty {
                 VStack(spacing: 12) {
                     Text(errorMessage).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Riprova") { Task { await reload() } }.glassButton()
+                    HStack {
+                        Button("Riprova") { Task { await reload() } }.glassButton()
+                        if source.isGiphy && !GiphyAPI.isConfigured {
+                            Button("Impostazioni") { app.selectedTab = .settings }.glassButton(prominent: true)
+                        }
+                    }
                 }
                 .padding(32)
                 .glassCard(cornerRadius: 28)
@@ -212,6 +222,10 @@ struct EmoteBrowserView: View {
                 result = applyFilter(response.emotes)
                 hasMore = response.hasMore
                 if page == 1 { emotes = [] }
+            case .giphyGifs, .giphyStickers:
+                let response = try await GiphyAPI.search(activeQuery, page: page, stickers: requestedSource == .giphyStickers)
+                result = response.emotes
+                hasMore = response.hasMore
             }
             guard requestedSource == source else { return }
             let existing = Set(emotes.map(\.id))
