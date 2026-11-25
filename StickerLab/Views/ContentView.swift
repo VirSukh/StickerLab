@@ -16,7 +16,7 @@ struct ContentView: View {
             NavigationStack { EmoteBrowserView() }
                 .tabItem { Label("Emote", systemImage: "face.smiling.inverse") }
                 .tag(AppTab.sevenTV)
-            NavigationStack { MemeTemplatesView() }
+            NavigationStack { MemeTabView() }
                 .tabItem { Label("Meme", systemImage: "theatermasks.fill") }
                 .tag(AppTab.memes)
             NavigationStack { SettingsView() }
