@@ -9,7 +9,7 @@ enum SoundStickerExporter {
     static let fps = 15.0
     static let maxDuration = 10.0
 
-    static func export(media: DecodedMedia, audioFile: URL, duration: Double, background: UIColor) async throws -> URL {
+    static func export(media: DecodedMedia, audioFile: URL, audioStart: Double = 0, duration: Double, background: UIColor) async throws -> URL {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("sound-stickers", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let silentVideo = folder.appendingPathComponent("\(UUID().uuidString)-video.mp4")
@@ -18,7 +18,7 @@ enum SoundStickerExporter {
 
         let length = min(max(duration, 0.5), maxDuration)
         try await writeVideo(media: media, duration: length, background: background, to: silentVideo)
-        try await mux(video: silentVideo, audio: audioFile, duration: length, to: output)
+        try await mux(video: silentVideo, audio: audioFile, audioStart: audioStart, duration: length, to: output)
         return output
     }
 
@@ -96,7 +96,7 @@ enum SoundStickerExporter {
 
     // MARK: Audio
 
-    private static func mux(video: URL, audio: URL, duration: Double, to output: URL) async throws {
+    private static func mux(video: URL, audio: URL, audioStart: Double, duration: Double, to output: URL) async throws {
         let composition = AVMutableComposition()
         let length = CMTime(seconds: duration, preferredTimescale: 600)
 
@@ -112,7 +112,9 @@ enum SoundStickerExporter {
         if let audioTrack = try await audioAsset.loadTracks(withMediaType: .audio).first,
            let audioOut = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
             let audioDuration = try await audioAsset.load(.duration)
-            try audioOut.insertTimeRange(CMTimeRange(start: .zero, duration: CMTimeMinimum(length, audioDuration)), of: audioTrack, at: .zero)
+            let start = CMTimeMinimum(CMTime(seconds: max(0, audioStart), preferredTimescale: 600), audioDuration)
+            let available = CMTimeSubtract(audioDuration, start)
+            try audioOut.insertTimeRange(CMTimeRange(start: start, duration: CMTimeMinimum(length, available)), of: audioTrack, at: .zero)
         } else {
             throw AppError("Il file audio non è leggibile.")
         }

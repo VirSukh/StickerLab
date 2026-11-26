@@ -4,9 +4,15 @@ import SwiftUI
 /// Meme tab: Imgflip templates or MyInstants sounds.
 struct MemeTabView: View {
     enum Mode: String, CaseIterable, Identifiable {
-        case templates, sounds
+        case templates, greenScreen, sounds
         var id: String { rawValue }
-        var label: String { self == .templates ? "Modelli" : "Suoni" }
+        var label: String {
+            switch self {
+            case .templates: return "Modelli"
+            case .greenScreen: return "Green screen"
+            case .sounds: return "Suoni"
+            }
+        }
     }
 
     @State private var mode: Mode = .templates
@@ -15,6 +21,7 @@ struct MemeTabView: View {
         Group {
             switch mode {
             case .templates: MemeTemplatesView()
+            case .greenScreen: GreenScreenLibraryView()
             case .sounds: SoundsView()
             }
         }

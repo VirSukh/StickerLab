@@ -1,3 +1,8 @@
+## 1.3.0
+- Green screen nella scheda Meme: oltre 7.000 template da greenscreenmemes.com e circa 300 da memes-download.com, con ricerca
+- Editor green screen: il verde viene tolto in automatico, metti dietro la tua foto, GIF, video o un tuo sticker, regoli tolleranza, posizione, zoom e durata
+- Esporta come sticker animato (anche trasparente, senza sfondo) oppure come video con l'audio del meme per gli sticker con audio
+
 ## 1.2.0
 - Nuova sezione Suoni nella scheda Meme: suoni di MyInstants (tendenza Italia e ricerca) con ascolto
 - Sticker con audio: scegli un suono e un'immagine, GIF, video o un tuo sticker e StickerLab crea il video da usare nel creatore di sticker con audio di WhatsApp
