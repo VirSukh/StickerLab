@@ -22,6 +22,24 @@ enum StickerPipeline {
         return try StickerEncoder.encodeStatic(rendered)
     }
 
+    /// Frames with all edits applied (512×512), e.g. for the video-with-audio export.
+    static func renderFrames(_ media: DecodedMedia, settings: EditSettings) -> DecodedMedia {
+        var source = media
+        if source.isAnimated, settings.trimEnd > 0 {
+            source = source.trimmed(start: settings.trimStart, end: settings.trimEnd)
+        }
+        source = source.limited(maxDuration: StickerEncoder.maxDuration)
+        var frames: [CGImage] = []
+        var durations: [Double] = []
+        for (index, frame) in source.frames.enumerated() {
+            if let rendered = StickerRenderer.render(frame, settings) {
+                frames.append(rendered)
+                durations.append(source.durations[index])
+            }
+        }
+        return frames.isEmpty ? source : DecodedMedia(frames: frames, durations: durations)
+    }
+
     static func loadDefault(_ item: ImportItem) async throws -> DecodedMedia {
         let url = item.fileURL
         if MediaDecoder.sniff(url) == .video {

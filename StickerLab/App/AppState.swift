@@ -12,6 +12,14 @@ struct ImportItem: Identifiable {
     var name: String?
     /// Imgflip template: the editor opens with top/bottom meme text.
     var memeTemplate = false
+    /// Editing a sticker already in a pack: saving replaces it.
+    var replacing: StickerRef?
+    var emojis: [String]?
+}
+
+struct StickerRef: Hashable {
+    let packID: UUID
+    let stickerID: UUID
 }
 
 struct BatchRequest: Identifiable {

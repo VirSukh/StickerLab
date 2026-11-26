@@ -1,3 +1,8 @@
+## 1.3.2
+- Modifica uno sticker già nel pacchetto: tienilo premuto → "Modifica nell'editor"; salvando lo sostituisci (o lo salvi come nuovo)
+- Nuova scheda Audio nell'editor: suoni da MyInstants, da File (MP3, M4A, WAV, audio di un video) o l'audio originale del video
+- Esporta il video con audio (con testo, disegni e bordo) per gli sticker con audio di WhatsApp
+
 ## 1.3.1
 - Inquadratura automatica: il soggetto del template viene ingrandito per riempire lo sticker
 - Pulsante "Inquadra soggetto" nell'editor green screen

@@ -39,6 +39,8 @@ struct MemeTabView: View {
 // MARK: - Sound list
 
 struct SoundsView: View {
+    /// When set, "Usa" returns the sound instead of opening the sound-sticker screen.
+    var onPick: ((SoundItem) -> Void)? = nil
     @ObservedObject private var player = SoundPlayer.shared
 
     @State private var query = ""
@@ -72,7 +74,7 @@ struct SoundsView: View {
                         player.toggle(sound)
                     } onUse: {
                         player.stop()
-                        selected = sound
+                        if let onPick { onPick(sound) } else { selected = sound }
                     }
                     .onAppear {
                         if sound.id == sounds.last?.id { Task { await loadMore() } }
@@ -367,6 +369,24 @@ struct SoundStickerView: View {
             }
         } catch {
             message = error.localizedDescription
+        }
+    }
+}
+
+/// MyInstants picker used by the editor's Audio tab.
+struct SoundPickerSheet: View {
+    let onPick: (SoundItem) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            SoundsView { sound in
+                dismiss()
+                onPick(sound)
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Chiudi") { dismiss() } }
+            }
         }
     }
 }

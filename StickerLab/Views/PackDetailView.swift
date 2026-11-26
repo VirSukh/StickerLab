@@ -204,6 +204,9 @@ struct PackDetailView: View {
         .onTapGesture { previewSticker = sticker }
         .contextMenu {
             Button {
+                edit(sticker, in: pack)
+            } label: { Label("Modifica nell'editor", systemImage: "slider.horizontal.3") }
+            Button {
                 emojiInput = sticker.emojis.joined()
                 emojiSticker = sticker
             } label: { Label("Modifica emoji", systemImage: "face.smiling") }
@@ -215,6 +218,19 @@ struct PackDetailView: View {
             Button(role: .destructive) { store.deleteSticker(sticker.id, from: pack.id) } label: {
                 Label("Elimina", systemImage: "trash")
             }
+        }
+    }
+
+    /// Opens the sticker in the editor; saving replaces it in place.
+    private func edit(_ sticker: Sticker, in pack: StickerPack) {
+        do {
+            let copy = try Downloader.importLocalFile(store.fileURL(for: sticker, in: pack))
+            app.editorItem = ImportItem(
+                fileURL: copy, sourceURL: sticker.sourceURL, name: nil,
+                replacing: StickerRef(packID: pack.id, stickerID: sticker.id), emojis: sticker.emojis
+            )
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

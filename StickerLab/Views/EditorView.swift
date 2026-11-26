@@ -1,5 +1,6 @@
 import PencilKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct EditorView: View {
     let item: ImportItem
@@ -9,7 +10,7 @@ struct EditorView: View {
     @AppStorage("defaultEmoji") private var defaultEmoji = "😀"
 
     enum Tab: String, CaseIterable, Identifiable {
-        case image, text, draw, effects, time
+        case image, text, draw, effects, time, audio
         var id: String { rawValue }
         var label: String {
             switch self {
@@ -18,6 +19,7 @@ struct EditorView: View {
             case .draw: return "Disegno"
             case .effects: return "Bordo"
             case .time: return "Tempo"
+            case .audio: return "Audio"
             }
         }
         var symbol: String {
@@ -27,6 +29,7 @@ struct EditorView: View {
             case .draw: return "pencil.tip"
             case .effects: return "seal"
             case .time: return "timer"
+            case .audio: return "speaker.wave.2"
             }
         }
     }
@@ -68,6 +71,19 @@ struct EditorView: View {
     @State private var showPackPicker = false
     @State private var configured = false
 
+    // Audio (video with sound for WhatsApp's sticker-with-sound creator)
+    @State private var audioFile: URL?
+    @State private var audioName = ""
+    @State private var audioLength: Double = 0
+    @State private var audioStart: Double = 0
+    @State private var clipDuration: Double = 3
+    @State private var videoBackground: SoundStickerView.Background = .black
+    @State private var showSoundPicker = false
+    @State private var showAudioImporter = false
+    @State private var shareItem: IdentifiableURL?
+    @State private var infoMessage: String?
+    @ObservedObject private var player = SoundPlayer.shared
+
     var body: some View {
         NavigationStack {
             content
@@ -76,9 +92,23 @@ struct EditorView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) { Button("Annulla") { dismiss() } }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Salva") { showPackPicker = true }
-                            .bold()
+                        if let ref = item.replacing {
+                            Menu {
+                                Button { saveReplacing(ref) } label: {
+                                    Label("Sostituisci lo sticker", systemImage: "arrow.triangle.2.circlepath")
+                                }
+                                Button { showPackPicker = true } label: {
+                                    Label("Salva come nuovo sticker…", systemImage: "plus.square.on.square")
+                                }
+                            } label: {
+                                Text("Salva").bold()
+                            }
                             .disabled(media == nil || working != nil || reloadingVideo)
+                        } else {
+                            Button("Salva") { showPackPicker = true }
+                                .bold()
+                                .disabled(media == nil || working != nil || reloadingVideo)
+                        }
                     }
                 }
                 .sheet(isPresented: $showPackPicker) {
@@ -96,6 +126,23 @@ struct EditorView: View {
                 }
         }
         .interactiveDismissDisabled(working != nil)
+        .sheet(isPresented: $showSoundPicker) {
+            SoundPickerSheet { sound in Task { await useSound(sound) } }
+        }
+        .sheet(item: $shareItem) { item in ShareSheet(items: [item.url]) }
+        .fileImporter(
+            isPresented: $showAudioImporter,
+            allowedContentTypes: [.audio, .mp3, .mpeg4Audio, .wav, .aiff, .movie, .mpeg4Movie, .quickTimeMovie],
+            allowsMultipleSelection: false
+        ) { result in
+            handleAudioFile(result)
+        }
+        .alert("StickerLab", isPresented: Binding(get: { infoMessage != nil }, set: { if !$0 { infoMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(infoMessage ?? "")
+        }
+        .onDisappear { player.stop() }
         .task { await load() }
     }
 
@@ -142,6 +189,7 @@ struct EditorView: View {
                 case .draw: drawSection
                 case .effects: effectsSection(media)
                 case .time: timeSection(media)
+                case .audio: audioSection
                 }
                 emojiSection
             }
@@ -564,6 +612,168 @@ struct EditorView: View {
         }
     }
 
+    // MARK: Audio
+
+    private var audioSection: some View {
+        VStack(spacing: 14) {
+            SectionBox(title: "Audio") {
+                if audioFile != nil {
+                    HStack(spacing: 12) {
+                        Button {
+                            if player.playingID == "editor" {
+                                player.stop()
+                            } else if let audioFile {
+                                player.play(id: "editor", url: audioFile)
+                            }
+                        } label: {
+                            Image(systemName: player.playingID == "editor" ? "stop.fill" : "play.fill")
+                                .frame(width: 42, height: 42)
+                                .foregroundStyle(.white)
+                                .glassCapsule(tint: .accentColor, interactive: true)
+                        }
+                        .buttonStyle(.plain)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(audioName).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text("\(audioLength, specifier: "%.1f")s").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(role: .destructive) {
+                            player.stop()
+                            audioFile = nil
+                        } label: { Image(systemName: "xmark.circle.fill") }
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                Button {
+                    showSoundPicker = true
+                } label: {
+                    Label("Suoni MyInstants", systemImage: "music.note.list")
+                }
+                Button {
+                    showAudioImporter = true
+                } label: {
+                    Label("Da File (MP3, M4A, WAV o audio di un video)", systemImage: "folder")
+                }
+                if isVideo {
+                    Button {
+                        useVideoAudio()
+                    } label: {
+                        Label("Usa l'audio originale del video", systemImage: "film")
+                    }
+                }
+            }
+
+            if audioFile != nil {
+                SectionBox(title: "Video con audio") {
+                    Text("Inizio audio: \(audioStart, specifier: "%.1f")s").font(.subheadline)
+                    Slider(value: $audioStart, in: 0...max(audioLength - 0.5, 0.01))
+                    Text("Durata: \(clipDuration, specifier: "%.1f")s").font(.subheadline)
+                    Slider(value: $clipDuration, in: 1...SoundStickerExporter.maxDuration)
+                    Picker("Sfondo", selection: $videoBackground) {
+                        ForEach(SoundStickerView.Background.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    GlassGroup {
+                        VStack(spacing: 10) {
+                            Button {
+                                Task { await exportAudioVideo(save: true) }
+                            } label: {
+                                Label("Salva video con audio in Galleria", systemImage: "square.and.arrow.down")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .glassButton(prominent: true, tint: .green)
+                            .controlSize(.large)
+                            Button {
+                                Task { await exportAudioVideo(save: false) }
+                            } label: {
+                                Label("Condividi", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                            }
+                            .glassButton()
+                        }
+                    }
+                    .disabled(media == nil || working != nil)
+                }
+            }
+
+            Text("WhatsApp non accetta l'audio negli sticker dei pacchetti: qui crei un video con testo, disegni e bordo, da usare nel creatore di sticker con audio di WhatsApp (Crea → scegli il video).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func setAudio(_ file: URL, name: String, start: Double = 0) async {
+        player.stop()
+        audioFile = file
+        audioName = name
+        audioLength = await SoundStickerExporter.audioDuration(file)
+        audioStart = min(start, max(0, audioLength - 0.5))
+        let available = max(1, audioLength - audioStart)
+        clipDuration = min(SoundStickerExporter.maxDuration, available)
+    }
+
+    private func useSound(_ sound: SoundItem) async {
+        working = "Download del suono…"
+        defer { working = nil }
+        do {
+            let file = try await MyInstantsAPI.downloadAudio(sound.url)
+            await setAudio(file, name: sound.name)
+        } catch {
+            errorMessage = "Impossibile scaricare il suono: \(error.localizedDescription)"
+        }
+    }
+
+    private func useVideoAudio() {
+        Task { await setAudio(item.fileURL, name: "Audio del video", start: videoStart) }
+    }
+
+    private func handleAudioFile(_ result: Result<[URL], Error>) {
+        switch result {
+        case .failure(let error):
+            errorMessage = error.localizedDescription
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let copy = try BackupManager.copyToTemporary(url)
+                let name = url.deletingPathExtension().lastPathComponent
+                Task { await setAudio(copy, name: name) }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func exportAudioVideo(save: Bool) async {
+        guard let media, let audioFile else { return }
+        player.stop()
+        var current = settings
+        if isVideo {
+            current.trimStart = 0
+            current.trimEnd = 0
+        }
+        let finalSettings = current
+        working = "Creazione del video…"
+        defer { working = nil }
+        do {
+            let rendered = await Task.detached(priority: .userInitiated) {
+                StickerPipeline.renderFrames(media, settings: finalSettings)
+            }.value
+            let url = try await SoundStickerExporter.export(
+                media: rendered, audioFile: audioFile, audioStart: audioStart,
+                duration: clipDuration, background: videoBackground.color
+            )
+            if save {
+                try await SoundStickerExporter.saveToPhotos(url)
+                infoMessage = "Video salvato in Galleria. In WhatsApp: icona sticker → Crea → scegli il video e tieni l'audio."
+            } else {
+                shareItem = IdentifiableURL(url: url)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private var emojiSection: some View {
         SectionBox(title: "Emoji") {
             TextField("😀", text: $emojiText)
@@ -580,6 +790,7 @@ struct EditorView: View {
         guard media == nil, loadError == nil else { return }
         if !configured {
             configured = true
+            if let emojis = item.emojis, !emojis.isEmpty { emojiText = emojis.joined() }
             if emojiText.isEmpty { emojiText = defaultEmoji }
             if item.memeTemplate {
                 let top = TextLayer.memeTop(), bottom = TextLayer.memeBottom()
@@ -638,6 +849,37 @@ struct EditorView: View {
             backgroundRemoved = true
         } else {
             errorMessage = "Non ho trovato un soggetto da ritagliare in questa immagine."
+        }
+    }
+
+    /// Re-encodes and replaces the sticker being edited (same pack, same position).
+    private func saveReplacing(_ ref: StickerRef) {
+        guard let media, let pack = store.pack(id: ref.packID) else {
+            errorMessage = "Il pacchetto non esiste più."
+            return
+        }
+        var finalSettings = settings
+        if isVideo {
+            finalSettings.trimStart = 0
+            finalSettings.trimEnd = 0
+        }
+        let animated = pack.animated
+        let emojis = EmojiParser.parse(emojiText)
+        working = animated ? "Aggiornamento sticker animato…" : "Aggiornamento sticker…"
+        Task {
+            do {
+                let data = try await Task.detached(priority: .userInitiated) {
+                    try StickerPipeline.makeSticker(from: media, settings: finalSettings, animated: animated)
+                }.value
+                try store.replaceSticker(ref.stickerID, in: ref.packID, with: data)
+                store.setEmojis(emojis, for: ref.stickerID, in: ref.packID)
+                working = nil
+                app.toast = "Sticker aggiornato"
+                dismiss()
+            } catch {
+                working = nil
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
