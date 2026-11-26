@@ -13,6 +13,10 @@ enum StickerPipeline {
             source = source.trimmed(start: settings.trimStart, end: settings.trimEnd)
         }
         if animated {
+            if settings.shimmer, settings.effect.canShimmer {
+                let sequence = shimmerSequence(source, settings: settings)
+                return try StickerEncoder.encodeAnimated(sequence) { $0 }
+            }
             return try StickerEncoder.encodeAnimated(source) { StickerRenderer.render($0, settings) }
         }
         let frameIndex = source.isAnimated ? source.frameIndex(at: 0) : 0
@@ -22,6 +26,28 @@ enum StickerPipeline {
         return try StickerEncoder.encodeStatic(rendered)
     }
 
+    static let shimmerCycle = 1.6
+
+    /// Renders frames with a moving foil/glitter phase. Still images become a 1.6 s loop.
+    static func shimmerSequence(_ media: DecodedMedia, settings: EditSettings) -> DecodedMedia {
+        let step = 1.0 / 12
+        let total = media.isAnimated ? min(media.totalDuration, StickerEncoder.maxDuration) : shimmerCycle
+        var frames: [CGImage] = []
+        var durations: [Double] = []
+        var time = 0.0
+        while time < total - 0.001 {
+            var current = settings
+            current.phase = time / shimmerCycle
+            let frame = media.frames[media.frameIndex(at: time)]
+            if let rendered = StickerRenderer.render(frame, current) {
+                frames.append(rendered)
+                durations.append(step)
+            }
+            time += step
+        }
+        return frames.isEmpty ? media : DecodedMedia(frames: frames, durations: durations)
+    }
+
     /// Frames with all edits applied (512×512), e.g. for the video-with-audio export.
     static func renderFrames(_ media: DecodedMedia, settings: EditSettings) -> DecodedMedia {
         var source = media
@@ -29,6 +55,9 @@ enum StickerPipeline {
             source = source.trimmed(start: settings.trimStart, end: settings.trimEnd)
         }
         source = source.limited(maxDuration: StickerEncoder.maxDuration)
+        if settings.shimmer, settings.effect.canShimmer {
+            return shimmerSequence(source, settings: settings)
+        }
         var frames: [CGImage] = []
         var durations: [Double] = []
         for (index, frame) in source.frames.enumerated() {
@@ -68,8 +97,64 @@ enum StickerPipeline {
     }
 }
 
+/// iOS 15+: cuts out people (fallback when subject lifting is unavailable).
+enum PersonCutout {
+    static func apply(to media: DecodedMedia) -> DecodedMedia? {
+        let context = CIContext()
+        var frames: [CGImage] = []
+        for frame in media.frames {
+            guard let cut = cutout(frame, context: context) else {
+                if frames.isEmpty { return nil }
+                frames.append(frames[frames.count - 1])
+                continue
+            }
+            frames.append(cut)
+        }
+        return DecodedMedia(frames: frames, durations: media.durations)
+    }
+
+    static func cutout(_ image: CGImage, context: CIContext) -> CGImage? {
+        let request = VNGeneratePersonSegmentationRequest()
+        request.qualityLevel = .accurate
+        request.outputPixelFormat = kCVPixelFormatType_OneComponent8
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        do {
+            try handler.perform([request])
+            guard let mask = request.results?.first?.pixelBuffer else { return nil }
+            let input = CIImage(cgImage: image)
+            var maskImage = CIImage(cvPixelBuffer: mask)
+            maskImage = maskImage.transformed(by: CGAffineTransform(
+                scaleX: input.extent.width / maskImage.extent.width,
+                y: input.extent.height / maskImage.extent.height
+            ))
+            let output = input.applyingFilter("CIBlendWithMask", parameters: [
+                kCIInputBackgroundImageKey: CIImage.empty(),
+                kCIInputMaskImageKey: maskImage,
+            ])
+            return context.createCGImage(output, from: input.extent)
+        } catch {
+            return nil
+        }
+    }
+}
+
 @available(iOS 17.0, *)
 enum BackgroundRemover {
+    /// Each subject found in the image, cut out on its own (for "choose the subject").
+    static func subjects(in image: CGImage) -> [(index: Int, image: CGImage)] {
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        let context = CIContext()
+        guard (try? handler.perform([request])) != nil, let result = request.results?.first else { return [] }
+        return result.allInstances.prefix(6).compactMap { instance in
+            guard let buffer = try? result.generateMaskedImage(
+                ofInstances: IndexSet(integer: instance), from: handler, croppedToInstancesExtent: false
+            ) else { return nil }
+            let ci = CIImage(cvPixelBuffer: buffer)
+            return context.createCGImage(ci, from: ci.extent).map { (instance, $0) }
+        }
+    }
+
     /// Cuts out the foreground subjects of every frame. Returns nil if no subject is found.
     static func apply(to media: DecodedMedia) -> DecodedMedia? {
         var frames: [CGImage] = []

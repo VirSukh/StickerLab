@@ -122,12 +122,15 @@ struct ShareSheet: UIViewControllerRepresentable {
 struct AnimatedMediaView: View {
     let media: DecodedMedia
     var render: ((CGImage) -> CGImage?)? = nil
+    /// Renders with the current time (shimmer effects), and keeps still images animating.
+    var renderTimed: ((CGImage, Double) -> CGImage?)? = nil
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !media.isAnimated)) { context in
-            let index = media.frameIndex(at: context.date.timeIntervalSinceReferenceDate)
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !media.isAnimated && renderTimed == nil)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            let index = media.frameIndex(at: time)
             let frame = media.frames[index]
-            let shown = render?(frame) ?? frame
+            let shown = renderTimed?(frame, time) ?? render?(frame) ?? frame
             Image(decorative: shown, scale: 1)
                 .resizable()
                 .interpolation(.high)

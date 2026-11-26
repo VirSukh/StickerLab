@@ -1,3 +1,9 @@
+## 1.4.0
+- Nuova scheda Effetti nell'editor: olografico, glitter, retino bianco e nero e retino a colori
+- Brillio animato: il riflesso olografico scorre e i brillantini scintillano, anche su foto fisse
+- Ombra sotto lo sticker e bordo color crema (effetto carta)
+- Scontorno AI migliorato: se ci sono più soggetti scegli quale tenere, pulsante per ripristinare l'originale; su iOS 16 ritaglio delle persone
+
 ## 1.3.2
 - Modifica uno sticker già nel pacchetto: tienilo premuto → "Modifica nell'editor"; salvando lo sostituisci (o lo salvi come nuovo)
 - Nuova scheda Audio nell'editor: suoni da MyInstants, da File (MP3, M4A, WAV, audio di un video) o l'audio originale del video

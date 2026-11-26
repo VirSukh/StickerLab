@@ -72,7 +72,7 @@ enum FontRegistry {
 // MARK: - Options
 
 enum TextColorOption: String, CaseIterable, Identifiable {
-    case white, black, yellow, red, green, blue, pink, purple
+    case white, cream, black, yellow, red, green, blue, pink, purple
     var id: String { rawValue }
     var color: UIColor {
         switch self {
@@ -84,6 +84,7 @@ enum TextColorOption: String, CaseIterable, Identifiable {
         case .blue: return UIColor(red: 0.2, green: 0.5, blue: 1, alpha: 1)
         case .pink: return UIColor(red: 1, green: 0.4, blue: 0.75, alpha: 1)
         case .purple: return UIColor(red: 0.6, green: 0.35, blue: 1, alpha: 1)
+        case .cream: return UIColor(red: 1, green: 0.96, blue: 0.9, alpha: 1)
         }
     }
 }
@@ -128,6 +129,15 @@ struct EditSettings {
     /// Trim for animated images (seconds). `trimEnd == 0` means until the end.
     var trimStart: Double = 0
     var trimEnd: Double = 0
+    /// Finish: holographic, glitter, halftone…
+    var effect: StickerEffect = .none
+    var effectIntensity: Double = 0.75
+    var halftoneSize: CGFloat = 7
+    /// Holographic / glitter move over time (makes still images animated).
+    var shimmer = false
+    /// 0…1, set per frame when shimmering.
+    var phase: Double = 0
+    var shadow = false
 }
 
 // MARK: - Renderer
@@ -144,17 +154,17 @@ enum StickerRenderer {
         context.clear(CGRect(x: 0, y: 0, width: side, height: side))
         context.interpolationQuality = .high
 
-        // Image
-        let w = CGFloat(image.width), h = CGFloat(image.height)
-        let base = settings.fill ? max(side / w, side / h) : min(side / w, side / h)
-        let drawWidth = w * base * settings.scale
-        let drawHeight = h * base * settings.scale
-        context.saveGState()
-        context.translateBy(x: side / 2 + settings.offset.width * k, y: side / 2 - settings.offset.height * k)
-        context.rotate(by: -CGFloat(settings.rotation) * .pi / 180)
-        if settings.flipped { context.scaleBy(x: -1, y: 1) }
-        context.draw(image, in: CGRect(x: -drawWidth / 2, y: -drawHeight / 2, width: drawWidth, height: drawHeight))
-        context.restoreGState()
+        // Image (halftone applies to the picture only, so text stays crisp)
+        if settings.effect.isHalftone, let layer = ImageUtils.makeContext(width: size, height: size) {
+            layer.interpolationQuality = .high
+            drawPicture(image, settings, in: layer, side: side, k: k)
+            if let picture = layer.makeImage(),
+               let dotted = StickerEffects.halftone(picture, color: settings.effect == .halftoneColor, dotSize: max(2, settings.halftoneSize * k)) {
+                context.draw(dotted, in: CGRect(x: 0, y: 0, width: side, height: side))
+            }
+        } else {
+            drawPicture(image, settings, in: context, side: side, k: k)
+        }
 
         // Drawing
         if let drawing = settings.drawing {
@@ -173,11 +183,35 @@ enum StickerRenderer {
             context.restoreGState()
         }
 
-        guard let composed = context.makeImage() else { return nil }
+        guard var result = context.makeImage() else { return nil }
         if settings.outline, settings.outlineWidth > 0 {
-            return addOutline(composed, radius: settings.outlineWidth * k, color: settings.outlineColor.color) ?? composed
+            result = addOutline(result, radius: settings.outlineWidth * k, color: settings.outlineColor.color) ?? result
         }
-        return composed
+        switch settings.effect {
+        case .holographic:
+            result = StickerEffects.holographic(result, intensity: settings.effectIntensity, phase: settings.phase) ?? result
+        case .glitter:
+            result = StickerEffects.glitter(result, intensity: settings.effectIntensity, phase: settings.phase) ?? result
+        default:
+            break
+        }
+        if settings.shadow {
+            result = StickerEffects.shadow(result, k: k) ?? result
+        }
+        return result
+    }
+
+    private static func drawPicture(_ image: CGImage, _ settings: EditSettings, in context: CGContext, side: CGFloat, k: CGFloat) {
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        let base = settings.fill ? max(side / w, side / h) : min(side / w, side / h)
+        let drawWidth = w * base * settings.scale
+        let drawHeight = h * base * settings.scale
+        context.saveGState()
+        context.translateBy(x: side / 2 + settings.offset.width * k, y: side / 2 - settings.offset.height * k)
+        context.rotate(by: -CGFloat(settings.rotation) * .pi / 180)
+        if settings.flipped { context.scaleBy(x: -1, y: 1) }
+        context.draw(image, in: CGRect(x: -drawWidth / 2, y: -drawHeight / 2, width: drawWidth, height: drawHeight))
+        context.restoreGState()
     }
 
     // MARK: Text

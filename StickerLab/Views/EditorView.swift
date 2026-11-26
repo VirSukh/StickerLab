@@ -17,7 +17,7 @@ struct EditorView: View {
             case .image: return "Immagine"
             case .text: return "Testo"
             case .draw: return "Disegno"
-            case .effects: return "Bordo"
+            case .effects: return "Effetti"
             case .time: return "Tempo"
             case .audio: return "Audio"
             }
@@ -27,7 +27,7 @@ struct EditorView: View {
             case .image: return "photo"
             case .text: return "textformat"
             case .draw: return "pencil.tip"
-            case .effects: return "seal"
+            case .effects: return "sparkles"
             case .time: return "timer"
             case .audio: return "speaker.wave.2"
             }
@@ -48,6 +48,9 @@ struct EditorView: View {
     @State private var videoLength: Double = 3
     @State private var reloadingVideo = false
     @State private var backgroundRemoved = false
+    /// Media before background removal (to pick another subject).
+    @State private var originalMedia: DecodedMedia?
+    @State private var subjectChoices: [(index: Int, image: CGImage)] = []
 
     // Editing
     @State private var settings = EditSettings()
@@ -112,7 +115,7 @@ struct EditorView: View {
                     }
                 }
                 .sheet(isPresented: $showPackPicker) {
-                    PackPickerView(suggestedAnimated: media?.isAnimated ?? false) { id in save(to: id) }
+                    PackPickerView(suggestedAnimated: (media?.isAnimated ?? false) || (settings.shimmer && settings.effect.canShimmer)) { id in save(to: id) }
                         .environmentObject(store)
                         .environmentObject(app)
                 }
@@ -208,8 +211,16 @@ struct EditorView: View {
             ZStack {
                 Checkerboard()
                 if let previewMedia {
-                    AnimatedMediaView(media: previewMedia) { frame in
-                        StickerRenderer.render(frame, settings, size: 384)
+                    if settings.shimmer && settings.effect.canShimmer {
+                        AnimatedMediaView(media: previewMedia, renderTimed: { frame, time in
+                            var current = settings
+                            current.phase = time / StickerPipeline.shimmerCycle
+                            return StickerRenderer.render(frame, current, size: 384)
+                        })
+                    } else {
+                        AnimatedMediaView(media: previewMedia) { frame in
+                            StickerRenderer.render(frame, settings, size: 384)
+                        }
                     }
                 }
                 if tab == .text, let index = selectedIndex {
@@ -541,7 +552,47 @@ struct EditorView: View {
 
     private func effectsSection(_ media: DecodedMedia) -> some View {
         VStack(spacing: 14) {
-            SectionBox(title: "Bordo sticker") {
+            SectionBox(title: "Effetto") {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(StickerEffect.allCases) { effect in
+                            let active = settings.effect == effect
+                            Button {
+                                settings.effect = effect
+                            } label: {
+                                Label(effect.label, systemImage: effect.symbol)
+                                    .font(.footnote.weight(active ? .semibold : .regular))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 7)
+                                    .foregroundStyle(active ? Color.white : Color.primary)
+                                    .glassCapsule(tint: active ? .accentColor : nil, interactive: true)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                if settings.effect == .holographic || settings.effect == .glitter {
+                    HStack {
+                        Text("Intensità")
+                        Slider(value: $settings.effectIntensity, in: 0.2...1)
+                    }
+                    Toggle("Brillio animato", isOn: $settings.shimmer)
+                    Text("Il riflesso scorre e i brillantini scintillano: anche una foto fissa diventa uno sticker animato (salvalo in un pacchetto animato).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if settings.effect.isHalftone {
+                    HStack {
+                        Text("Puntini")
+                        Slider(value: $settings.halftoneSize, in: 3...16)
+                    }
+                    Text("Effetto stampa/fumetto sull'immagine; testi e disegni restano nitidi.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            SectionBox(title: "Bordo e ombra") {
                 Toggle("Contorno attorno allo sticker", isOn: $settings.outline)
                 if settings.outline {
                     HStack {
@@ -549,12 +600,14 @@ struct EditorView: View {
                         Slider(value: $settings.outlineWidth, in: 2...24)
                     }
                     colorRow(selection: $settings.outlineColor)
-                    Text("Se il bordo viene tagliato ai lati, rimpicciolisci un po' l'immagine.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
+                Toggle("Ombra", isOn: $settings.shadow)
+                Text("Se il bordo o l'ombra vengono tagliati ai lati, rimpicciolisci un po' l'immagine.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            SectionBox(title: "Sfondo") {
+
+            SectionBox(title: "Scontorno AI") {
                 if #available(iOS 17.0, *) {
                     Button {
                         Task { await removeBackground() }
@@ -563,13 +616,60 @@ struct EditorView: View {
                     }
                     .glassButton(prominent: true)
                     .disabled(backgroundRemoved)
-                    if media.isAnimated {
-                        Text("Su GIF e video viene applicato a ogni fotogramma: può richiedere qualche secondo.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+
+                    if !subjectChoices.isEmpty {
+                        Text("Più soggetti trovati: scegli quale tenere").font(.subheadline)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 10) {
+                                Button {
+                                    Task { await chooseSubject(nil) }
+                                } label: {
+                                    Text("Tutti")
+                                        .font(.footnote.weight(.semibold))
+                                        .frame(width: 70, height: 70)
+                                        .glassCard(cornerRadius: 16, interactive: true)
+                                }
+                                .buttonStyle(.plain)
+                                ForEach(subjectChoices, id: \.index) { choice in
+                                    Button {
+                                        Task { await chooseSubject(choice.index) }
+                                    } label: {
+                                        Image(decorative: choice.image, scale: 1)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .padding(6)
+                                            .frame(width: 70, height: 70)
+                                            .glassCard(cornerRadius: 16, interactive: true)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    if backgroundRemoved, originalMedia != nil {
+                        Button {
+                            if let originalMedia { self.media = originalMedia }
+                            backgroundRemoved = false
+                            subjectChoices = []
+                        } label: {
+                            Label("Ripristina l'originale", systemImage: "arrow.uturn.backward")
+                        }
+                        .glassButton()
                     }
                 } else {
-                    Text("La rimozione automatica dello sfondo richiede iOS 17.")
+                    Button {
+                        Task { await cutoutPeople() }
+                    } label: {
+                        Label(backgroundRemoved ? "Persona ritagliata" : "Ritaglia persona", systemImage: "person.crop.rectangle")
+                    }
+                    .glassButton(prominent: true)
+                    .disabled(backgroundRemoved)
+                    Text("Su iOS 16 si possono ritagliare solo le persone; con iOS 17 qualsiasi soggetto.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if media.isAnimated {
+                    Text("Su GIF e video viene applicato a ogni fotogramma: può richiedere qualche secondo.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -843,12 +943,48 @@ struct EditorView: View {
         guard let source = media else { return }
         working = "Rimozione sfondo…"
         let result = await Task.detached(priority: .userInitiated) { BackgroundRemover.apply(to: source) }.value
+        // Several subjects in a still image: offer the choice.
+        var choices: [(index: Int, image: CGImage)] = []
+        if !source.isAnimated, let first = source.frames.first {
+            choices = await Task.detached(priority: .userInitiated) { BackgroundRemover.subjects(in: first) }.value
+        }
         working = nil
         if let result {
+            originalMedia = source
+            media = result
+            backgroundRemoved = true
+            subjectChoices = choices.count > 1 ? choices : []
+        } else {
+            errorMessage = "Non ho trovato un soggetto da ritagliare in questa immagine."
+        }
+    }
+
+    /// nil = all subjects.
+    @available(iOS 17.0, *)
+    private func chooseSubject(_ index: Int?) async {
+        guard let original = originalMedia else { return }
+        if let index, let choice = subjectChoices.first(where: { $0.index == index }) {
+            media = DecodedMedia(frames: [choice.image], durations: original.durations)
+            return
+        }
+        working = "Rimozione sfondo…"
+        let all = await Task.detached(priority: .userInitiated) { BackgroundRemover.apply(to: original) }.value
+        working = nil
+        if let all { media = all }
+    }
+
+    /// iOS 16: people only.
+    private func cutoutPeople() async {
+        guard let source = media else { return }
+        working = "Ritaglio della persona…"
+        let result = await Task.detached(priority: .userInitiated) { PersonCutout.apply(to: source) }.value
+        working = nil
+        if let result {
+            originalMedia = source
             media = result
             backgroundRemoved = true
         } else {
-            errorMessage = "Non ho trovato un soggetto da ritagliare in questa immagine."
+            errorMessage = "Non ho trovato una persona da ritagliare."
         }
     }
 
