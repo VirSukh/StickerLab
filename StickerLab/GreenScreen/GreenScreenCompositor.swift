@@ -109,6 +109,42 @@ enum GreenScreenCompositor {
         return context.makeImage()
     }
 
+    /// Zoom and offset that make the visible subject fill ~90% of the sticker
+    /// (many templates have a small subject in a big green frame).
+    static func autoFrame(_ keyed: DecodedMedia) -> (scale: CGFloat, offset: CGSize)? {
+        guard let first = keyed.frames.first else { return nil }
+        let w = first.width, h = first.height
+        var minX = w, minY = h, maxX = -1, maxY = -1
+        let step = max(1, keyed.frames.count / 8)
+        for index in stride(from: 0, to: keyed.frames.count, by: step) {
+            let frame = keyed.frames[index]
+            guard frame.width == w, frame.height == h else { continue }
+            let pixels = ImageUtils.rgbaBytes(frame, width: w, height: h)
+            for y in stride(from: 0, to: h, by: 2) {
+                var row = y * w * 4 + 3
+                for x in stride(from: 0, to: w, by: 2) {
+                    if pixels[row] > 40 {
+                        if x < minX { minX = x }
+                        if x > maxX { maxX = x }
+                        if y < minY { minY = y }
+                        if y > maxY { maxY = y }
+                    }
+                    row += 8
+                }
+            }
+        }
+        guard maxX > minX, maxY > minY else { return nil }
+        let canvas = CGFloat(StickerRenderer.canvas)
+        let base = min(canvas / CGFloat(w), canvas / CGFloat(h))
+        let boxW = CGFloat(maxX - minX + 2), boxH = CGFloat(maxY - minY + 2)
+        let scale = min(4, max(1, 0.9 * canvas / (max(boxW, boxH) * base)))
+        let drawW = CGFloat(w) * base * scale, drawH = CGFloat(h) * base * scale
+        let centerX = CGFloat(minX + maxX) / 2, centerY = CGFloat(minY + maxY) / 2
+        let offsetX = canvas / 2 - ((canvas - drawW) / 2 + centerX * base * scale)
+        let offsetY = canvas / 2 - ((canvas - drawH) / 2 + centerY * base * scale)
+        return (scale, CGSize(width: offsetX, height: offsetY))
+    }
+
     /// Full-size result following the template's timing (background loops if shorter).
     static func composite(template: DecodedMedia, background: DecodedMedia?, settings: GreenScreenSettings) -> DecodedMedia {
         var frames: [CGImage] = []

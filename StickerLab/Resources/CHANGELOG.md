@@ -1,3 +1,7 @@
+## 1.3.1
+- Inquadratura automatica: il soggetto del template viene ingrandito per riempire lo sticker
+- Pulsante "Inquadra soggetto" nell'editor green screen
+
 ## 1.3.0
 - Green screen nella scheda Meme: oltre 7.000 template da greenscreenmemes.com e circa 300 da memes-download.com, con ricerca
 - Editor green screen: il verde viene tolto in automatico, metti dietro la tua foto, GIF, video o un tuo sticker, regoli tolleranza, posizione, zoom e durata

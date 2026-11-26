@@ -358,11 +358,19 @@ struct GreenScreenEditorView: View {
                 Text("Zoom template")
                 Slider(value: $settings.templateScale, in: 0.3...3)
             }
-            Button("Reimposta posizione") {
-                settings.backgroundScale = 1
-                settings.backgroundOffset = .zero
-                settings.templateScale = 1
-                settings.templateOffset = .zero
+            HStack {
+                Button {
+                    Task { await autoFrame() }
+                } label: {
+                    Label("Inquadra soggetto", systemImage: "viewfinder")
+                }
+                Spacer()
+                Button("Reimposta") {
+                    settings.backgroundScale = 1
+                    settings.backgroundOffset = .zero
+                    settings.templateScale = 1
+                    settings.templateOffset = .zero
+                }
             }
             .glassButton()
         }
@@ -443,6 +451,7 @@ struct GreenScreenEditorView: View {
                 }.value
             }
             await rekey()
+            if initial { await autoFrame() }
         } catch {
             loadError = "Impossibile leggere il video: \(error.localizedDescription)"
         }
@@ -454,6 +463,15 @@ struct GreenScreenEditorView: View {
         keyed = await Task.detached(priority: .userInitiated) {
             GreenScreenCompositor.key(raw, color: color, tolerance: tolerance, softness: softness)
         }.value
+    }
+
+    /// Zooms on the subject so it fills the sticker.
+    private func autoFrame() async {
+        guard let keyed else { return }
+        if let frame = await Task.detached(priority: .userInitiated, operation: { GreenScreenCompositor.autoFrame(keyed) }).value {
+            settings.templateScale = frame.scale
+            settings.templateOffset = frame.offset
+        }
     }
 
     private func loadBackground(_ item: PhotosPickerItem) async {
